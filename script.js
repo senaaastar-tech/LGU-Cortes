@@ -24,13 +24,20 @@ let isSignupMode = false;
 let currentDocId = "";
 let currentCitizenEmail = "";
 
-// --- AUTH & CITIZEN LOGIC (Same as before) ---
+// --- AUTH LOGIC ---
 window.toggleAuthMode = () => {
     isSignupMode = !isSignupMode;
     document.getElementById('authTitle').innerText = isSignupMode ? "Create Citizen Account" : "Citizen Login";
     document.getElementById('mainAuthBtn').innerText = isSignupMode ? "SIGN UP" : "LOGIN";
     document.getElementById('toggleText').innerText = isSignupMode ? "Already have an account?" : "New to the portal?";
     document.getElementById('toggleBtn').innerText = isSignupMode ? "Login" : "Create Account";
+};
+
+// SHOW PASSWORD LOGIC
+window.togglePasswordVisibility = () => {
+    const passInput = document.getElementById('authPass');
+    const toggle = document.getElementById('showPassToggle');
+    passInput.type = toggle.checked ? "text" : "password";
 };
 
 window.handleAuth = async () => {
@@ -60,6 +67,7 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
+// --- CITIZEN SUBMIT ---
 window.submitRequest = async () => {
     const name = document.getElementById('citizenFullName').value;
     const contact = document.getElementById('citizenContact').value;
@@ -116,7 +124,6 @@ window.updateStatus = async (id, status) => {
     await updateDoc(doc(db, "lgu_requests", id), { status });
 };
 
-// DELETE FUNCTION
 window.deleteRequest = async (id) => {
     if(confirm("Are you sure you want to delete this record?")) {
         try {
