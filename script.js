@@ -133,7 +133,7 @@ if(sendBtn) {
 
         try {
             // EmailJS
-            await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', {
+            await emailjs.send('service_yk1dfxf', 'template_agmhyzw', {
                 to_email: currentCitizenEmail,
                 appointment_date: date,
                 appointment_time: time,
