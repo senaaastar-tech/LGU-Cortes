@@ -3,57 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LGU Cortes Connect | Official Portal</title>
+    <title>LGU Cortes Connect</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-50 p-5 font-sans">
-    <div class="max-w-md mx-auto bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-        <div class="bg-blue-700 p-6 text-center">
-            <img src="images/cortes.jpg" alt="LGU Logo" class="w-20 h-20 rounded-full mx-auto mb-3 border-2 border-white shadow-md object-cover">
-            <h1 class="text-xl font-black text-white uppercase tracking-wider">LGU Cortes Connect</h1>
-            <p class="text-blue-100 text-[10px] uppercase font-bold tracking-widest">Official Appointment System</p>
+<body class="bg-slate-50 p-5">
+    <div class="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+        <div class="bg-blue-700 p-6 text-center text-white">
+            <img src="images/cortes.jpg" alt="Logo" class="w-20 h-20 rounded-full mx-auto mb-3 border-2 border-white object-cover">
+            <h1 class="text-xl font-black uppercase">LGU Cortes Connect</h1>
         </div>
 
         <div id="authSection" class="p-8">
-            <h2 id="authTitle" class="text-xl font-bold text-gray-800 mb-6">Citizen Login</h2>
+            <h2 id="authTitle" class="text-xl font-bold mb-6 text-gray-800 text-center">Citizen Login</h2>
             <div class="space-y-4">
                 <input id="authEmail" type="email" placeholder="Email Address" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
                 <input id="authPass" type="password" placeholder="Password" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-                
-                <button id="mainAuthBtn" onclick="handleAuth()" class="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 transition">LOGIN</button>
-                
+                <button id="mainAuthBtn" onclick="handleAuth()" class="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700">LOGIN</button>
                 <p class="text-center text-sm text-gray-500 mt-4">
                     <span id="toggleText">Don't have an account?</span>
-                    <button onclick="toggleAuthMode()" id="toggleBtn" class="text-blue-600 font-bold ml-1">Sign Up</button>
+                    <button onclick="toggleAuthMode()" id="toggleBtn" class="text-blue-600 font-bold ml-1 underline">Sign Up</button>
                 </p>
             </div>
         </div>
 
-        <div id="appSection" class="hidden p-8 animate-in fade-in duration-500">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="font-bold text-gray-700">Welcome, Citizen!</h2>
-                <button onclick="logout()" class="text-[10px] bg-gray-200 px-2 py-1 rounded font-bold hover:bg-gray-300">LOGOUT</button>
+        <div id="appSection" class="hidden p-8">
+            <div class="flex justify-between items-center mb-6 border-b pb-2">
+                <p class="text-xs font-bold text-gray-600">CITIZEN PORTAL</p>
+                <button onclick="logout()" class="text-[10px] bg-gray-100 px-3 py-1 rounded font-bold hover:bg-red-100 hover:text-red-600 transition">LOGOUT</button>
             </div>
 
-            <div class="space-y-4 bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6">
-                <label class="block text-xs font-black text-blue-900 uppercase">Select Service</label>
-                <select id="serviceType" class="w-full p-3 border border-white rounded-lg outline-none shadow-sm text-sm">
+            <div class="space-y-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                <label class="block text-[10px] font-black text-blue-900 uppercase">Select Service</label>
+                <select id="serviceType" class="w-full p-3 border border-white rounded-lg text-sm outline-none shadow-sm">
                     <option>Cedula</option>
                     <option>Barangay Clearance</option>
-                    <option>Business Permit (New/Renewal)</option>
+                    <option>Business Permit</option>
                     <option>Birth Certificate Request</option>
                 </select>
-                <button onclick="submitRequest()" class="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 transition shadow-lg">SUBMIT REQUEST</button>
+                <button onclick="submitRequest()" class="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 shadow-md active:scale-95 transition">SUBMIT REQUEST</button>
             </div>
 
-            <div class="mt-6 border-t pt-4">
-                <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Your Request Status</h3>
-                <div id="userStatus" class="space-y-2 max-h-48 overflow-y-auto">
-                    <p class="text-[10px] text-gray-400 italic">No active requests.</p>
+            <div class="mt-8">
+                <h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Live Status</h3>
+                <div id="userStatus" class="space-y-2">
+                    <p class="text-[10px] text-gray-400 italic">No requests found...</p>
                 </div>
             </div>
         </div>
     </div>
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <script type="module" src="script.js"></script>
 </body>
 </html>
