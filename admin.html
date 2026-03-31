@@ -3,39 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LGU Staff Dashboard | Cortes</title>
+    <title>LGU Staff | Admin Control</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </head>
-<body class="bg-slate-900 p-5 text-white font-sans">
+<body class="bg-slate-950 p-6 text-slate-100 font-sans">
     
-    <div id="loginSection" class="max-w-sm mx-auto mt-24 p-8 bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 text-center">
-        <img src="images/cortes.jpg" alt="Logo" class="w-20 h-20 rounded-full mx-auto mb-4 border-2 border-slate-700 object-cover">
-        <h2 class="text-xl font-black mb-6 text-blue-400 uppercase tracking-widest">OFFICIAL STAFF LOGIN</h2>
-        <input id="adminPass" type="password" placeholder="System Password" class="w-full p-3 mb-4 rounded-lg bg-slate-800 border border-slate-700 text-white focus:ring-2 focus:ring-blue-500 outline-none">
-        <button onclick="checkAdmin()" class="w-full bg-blue-600 hover:bg-blue-500 p-3 rounded-lg font-black transition-all shadow-lg active:scale-95">ACCESS SYSTEM</button>
+    <div id="loginSection" class="max-w-sm mx-auto mt-32 p-8 bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl text-center">
+        <img src="images/cortes.jpg" alt="Logo" class="w-20 h-20 rounded-full mx-auto mb-6 border-2 border-slate-700 object-cover">
+        <h2 class="text-xl font-black mb-6 text-blue-500 tracking-widest uppercase">Staff Access</h2>
+        <input id="adminPass" type="password" placeholder="System Password" class="w-full p-4 mb-4 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500 outline-none">
+        <button onclick="checkAdmin()" class="w-full bg-blue-600 hover:bg-blue-500 p-4 rounded-xl font-black transition-all shadow-lg active:scale-95">LOGIN TO SYSTEM</button>
     </div>
 
-    <div id="dashboard" class="hidden max-w-5xl mx-auto animate-in slide-in-from-top duration-500">
-        <header class="flex justify-between items-center mb-8 bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
-            <div class="flex items-center gap-5">
+    <div id="dashboard" class="hidden max-w-6xl mx-auto">
+        <header class="flex justify-between items-center mb-10 bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
+            <div class="flex items-center gap-6">
                 <img src="images/cortes.jpg" alt="Logo" class="w-16 h-16 rounded-full border-2 border-slate-700 object-cover">
                 <div>
-                    <h1 class="text-2xl font-black text-white leading-none tracking-tight uppercase">Staff Management Dashboard</h1>
-                    <p class="text-xs text-blue-500 font-bold mt-1 tracking-widest">LGU CORTES CONNECT v1.0</p>
+                    <h1 class="text-2xl font-black tracking-tight uppercase leading-none">Management Console</h1>
+                    <p class="text-[10px] text-blue-500 font-black mt-2 tracking-[0.2em]">OFFICIAL LGU CORTES CONNECT</p>
                 </div>
             </div>
-            <button onclick="location.reload()" class="bg-red-900/30 text-red-400 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-800 hover:text-white transition uppercase">Logout</button>
+            <button onclick="location.reload()" class="bg-red-950/30 text-red-500 px-6 py-2 rounded-xl text-xs font-black hover:bg-red-600 hover:text-white transition uppercase">Logout</button>
         </header>
 
-        <div class="grid gap-4">
-            <div class="flex items-center justify-between px-2">
-                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Citizen Request Queue</h2>
-                <div class="flex gap-2">
-                    <span class="bg-blue-900/50 text-blue-400 text-[10px] px-2 py-1 rounded font-black">STABLE SYNC</span>
+        <div id="adminList" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            </div>
+    </div>
+
+    <div id="emailModal" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center p-6 z-50 backdrop-blur-sm">
+        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 max-w-sm w-full shadow-2xl">
+            <h3 class="text-xl font-black mb-2 text-blue-400 uppercase tracking-tight">Set Schedule</h3>
+            <p id="targetEmail" class="text-[10px] text-slate-500 mb-6 font-mono break-all bg-slate-800 p-2 rounded"></p>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Visit Date</label>
+                    <input id="schedDate" type="date" class="w-full p-3 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Visit Time</label>
+                    <input id="schedTime" type="time" class="w-full p-3 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500">
                 </div>
             </div>
-            <div id="adminList" class="grid gap-3 min-h-[200px]">
-                <p class="text-slate-600 text-center mt-10 italic">Checking for new submissions...</p>
+            
+            <div class="flex gap-3 mt-8">
+                <button onclick="closeModal()" class="flex-1 bg-slate-800 p-3 rounded-xl font-black text-xs hover:bg-slate-700 transition">CANCEL</button>
+                <button id="sendEmailBtn" class="flex-1 bg-blue-600 p-3 rounded-xl font-black text-xs hover:bg-blue-500 transition shadow-lg">APPROVE & EMAIL</button>
             </div>
         </div>
     </div>
@@ -47,7 +62,7 @@
                 document.getElementById('loginSection').classList.add('hidden');
                 document.getElementById('dashboard').classList.remove('hidden');
                 if (window.loadAdminData) window.loadAdminData();
-            } else { alert("INVALID SYSTEM PASSWORD"); }
+            } else { alert("ACCESS DENIED"); }
         }
     </script>
 </body>
