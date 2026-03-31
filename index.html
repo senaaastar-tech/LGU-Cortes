@@ -3,45 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LGU Cortes Connect</title>
+    <title>LGU Cortes Connect | Official Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 p-5 font-sans">
-    <div class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-md text-slate-900 border-t-8 border-blue-600">
-        <div class="flex flex-col items-center justify-center mb-6 border-b pb-4">
-            <img src="images/cortes.jpg" alt="LGU Cortes Logo" class="w-24 h-24 rounded-full shadow-md border-2 border-gray-200 mb-3 object-cover">
-            <h1 class="text-2xl font-bold text-blue-800 text-center uppercase tracking-tight">LGU Cortes Connect</h1>
-            <p class="text-xs text-gray-500 font-semibold text-center">Bohol Island State University - Project</p>
+<body class="bg-slate-50 p-5 font-sans">
+    <div class="max-w-md mx-auto bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+        <div class="bg-blue-700 p-6 text-center">
+            <img src="images/cortes.jpg" alt="LGU Logo" class="w-20 h-20 rounded-full mx-auto mb-3 border-2 border-white shadow-md object-cover">
+            <h1 class="text-xl font-black text-white uppercase tracking-wider">LGU Cortes Connect</h1>
+            <p class="text-blue-100 text-[10px] uppercase font-bold tracking-widest">Official Appointment System</p>
         </div>
-        
-        <div class="space-y-4">
-            <div>
-                <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Full Name</label>
-                <input id="userName" type="text" placeholder="Enter your name" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+
+        <div id="authSection" class="p-8">
+            <h2 id="authTitle" class="text-xl font-bold text-gray-800 mb-6">Citizen Login</h2>
+            <div class="space-y-4">
+                <input id="authEmail" type="email" placeholder="Email Address" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                <input id="authPass" type="password" placeholder="Password" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                
+                <button id="mainAuthBtn" onclick="handleAuth()" class="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 transition">LOGIN</button>
+                
+                <p class="text-center text-sm text-gray-500 mt-4">
+                    <span id="toggleText">Don't have an account?</span>
+                    <button onclick="toggleAuthMode()" id="toggleBtn" class="text-blue-600 font-bold ml-1">Sign Up</button>
+                </p>
             </div>
-            
-            <div>
-                <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Service Required</label>
-                <select id="serviceType" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm">
+        </div>
+
+        <div id="appSection" class="hidden p-8 animate-in fade-in duration-500">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="font-bold text-gray-700">Welcome, Citizen!</h2>
+                <button onclick="logout()" class="text-[10px] bg-gray-200 px-2 py-1 rounded font-bold hover:bg-gray-300">LOGOUT</button>
+            </div>
+
+            <div class="space-y-4 bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6">
+                <label class="block text-xs font-black text-blue-900 uppercase">Select Service</label>
+                <select id="serviceType" class="w-full p-3 border border-white rounded-lg outline-none shadow-sm text-sm">
                     <option>Cedula</option>
                     <option>Barangay Clearance</option>
-                    <option>Business Permit</option>
+                    <option>Business Permit (New/Renewal)</option>
                     <option>Birth Certificate Request</option>
                 </select>
+                <button onclick="submitRequest()" class="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 transition shadow-lg">SUBMIT REQUEST</button>
             </div>
-            
-            <button onclick="submitRequest()" class="w-full bg-blue-700 text-white p-3 rounded-lg font-bold hover:bg-blue-800 transition-all shadow-md active:scale-95">
-                SUBMIT REQUEST
-            </button>
-        </div>
-        
-        <div class="mt-8 pt-6 border-t border-gray-100">
-            <h2 class="font-bold text-sm text-blue-900 mb-3 flex items-center gap-2">
-                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                LIVE STATUS TRACKER
-            </h2>
-            <div id="userStatus" class="text-xs space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100 max-h-40 overflow-y-auto">
-                <p class="text-gray-400 italic">No requests found...</p>
+
+            <div class="mt-6 border-t pt-4">
+                <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Your Request Status</h3>
+                <div id="userStatus" class="space-y-2 max-h-48 overflow-y-auto">
+                    <p class="text-[10px] text-gray-400 italic">No active requests.</p>
+                </div>
             </div>
         </div>
     </div>
