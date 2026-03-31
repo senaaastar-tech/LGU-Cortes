@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAp1YJkWIUYzWdxTV_awoeOIzfghGkGPCU",
@@ -10,69 +11,108 @@ const firebaseConfig = {
   appId: "1:603868399677:web:bc4a28aebd73cdb6318254",
   measurementId: "G-NXFJQVHV1Y"
 };
+
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const db = getFirestore(app);
 
-// CITIZEN: Submit
-window.submitRequest = async () => {
-    const name = document.getElementById('userName').value;
-    const service = document.getElementById('serviceType').value;
-    if(!name) return alert("Enter your name first!");
+let isSignupMode = false;
 
+// AUTH LOGIC
+window.toggleAuthMode = () => {
+    isSignupMode = !isSignupMode;
+    document.getElementById('authTitle').innerText = isSignupMode ? "Create Citizen Account" : "Citizen Login";
+    document.getElementById('mainAuthBtn').innerText = isSignupMode ? "SIGN UP" : "LOGIN";
+    document.getElementById('toggleText').innerText = isSignupMode ? "Already have an account?" : "Don't have an account?";
+    document.getElementById('toggleBtn').innerText = isSignupMode ? "Login" : "Sign Up";
+};
+
+window.handleAuth = async () => {
+    const email = document.getElementById('authEmail').value;
+    const pass = document.getElementById('authPass').value;
+    if(!email || !pass) return alert("Fill all fields");
+
+    try {
+        if(isSignupMode) {
+            await createUserWithEmailAndPassword(auth, email, pass);
+            alert("Account Created!");
+        } else {
+            await signInWithEmailAndPassword(auth, email, pass);
+        }
+    } catch (e) { alert(e.message); }
+};
+
+window.logout = () => signOut(auth);
+
+// MONITOR AUTH STATE
+onAuthStateChanged(auth, (user) => {
+    const authDiv = document.getElementById('authSection');
+    const appDiv = document.getElementById('appSection');
+    if(user && authDiv) {
+        authDiv.classList.add('hidden');
+        appDiv.classList.remove('hidden');
+        loadUserRequests(user.uid);
+    } else if (authDiv) {
+        authDiv.classList.remove('hidden');
+        appDiv.classList.add('hidden');
+    }
+});
+
+// SUBMIT REQUEST
+window.submitRequest = async () => {
+    const service = document.getElementById('serviceType').value;
     await addDoc(collection(db, "lgu_requests"), {
-        name: name,
+        uid: auth.currentUser.uid,
+        email: auth.currentUser.email,
         service: service,
         status: "Pending",
         timestamp: Date.now()
     });
-    document.getElementById('userName').value = "";
-    alert("Request Submitted Successfully!");
+    alert("Request Sent to LGU Staff!");
 };
 
-// ADMIN: Update Status
-window.updateStatus = async (id, newStatus) => {
-    await updateDoc(doc(db, "lgu_requests", id), { status: newStatus });
-};
-
-// ADMIN: Live Data Load
-window.loadAdminData = () => {
-    const q = query(collection(db, "lgu_requests"), orderBy("timestamp", "desc"));
-    onSnapshot(q, (snapshot) => {
-        const list = document.getElementById('adminList');
-        list.innerHTML = "";
-        snapshot.forEach((docSnap) => {
-            const d = docSnap.data();
-            const statusColor = d.status === 'Ready for Pickup' ? 'text-green-400' : 'text-yellow-400';
-            list.innerHTML += `
-                <div class="bg-slate-900 p-5 rounded-xl border border-slate-800 flex justify-between items-center shadow-md">
-                    <div>
-                        <p class="font-black text-blue-300 text-lg uppercase leading-none mb-1">${d.name}</p>
-                        <p class="text-xs text-slate-500 font-bold uppercase mb-2">${d.service}</p>
-                        <span class="text-[10px] font-black p-1 bg-slate-800 rounded ${statusColor}">STATUS: ${d.status}</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="updateStatus('${docSnap.id}', 'Ready for Pickup')" class="bg-green-600 hover:bg-green-500 px-3 py-2 rounded font-bold text-[10px] transition-all">SET READY</button>
-                        <button onclick="updateStatus('${docSnap.id}', 'Declined')" class="bg-red-700 hover:bg-red-600 px-3 py-2 rounded font-bold text-[10px] transition-all">DECLINE</button>
-                    </div>
-                </div>`;
-        });
-    });
-};
-
-// USER: Tracker for index.html
-if(document.getElementById('userStatus')) {
-    const q = query(collection(db, "lgu_requests"), orderBy("timestamp", "desc"));
-    onSnapshot(q, (snapshot) => {
+// LOAD USER DATA (For Citizen)
+function loadUserRequests(uid) {
+    const q = query(collection(db, "lgu_requests"), where("uid", "==", uid), orderBy("timestamp", "desc"));
+    onSnapshot(q, (snap) => {
         const div = document.getElementById('userStatus');
         div.innerHTML = "";
-        snapshot.forEach(doc => {
-            const d = doc.data();
-            const badge = d.status === 'Ready for Pickup' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
+        snap.forEach(d => {
+            const data = d.data();
+            const color = data.status === 'Ready for Pickup' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
             div.innerHTML += `
-                <div class="flex justify-between items-center border-b border-gray-100 pb-1">
-                    <span class="font-bold">${d.name}</span>
-                    <span class="${badge} px-2 py-0.5 rounded text-[10px] font-black uppercase">${d.status}</span>
+                <div class="flex justify-between items-center bg-white p-2 border rounded shadow-sm">
+                    <span class="text-[10px] font-bold text-gray-700">${data.service}</span>
+                    <span class="${color} text-[8px] font-black px-2 py-0.5 rounded uppercase">${data.status}</span>
                 </div>`;
         });
     });
 }
+
+// ADMIN LOGIC
+window.updateStatus = async (id, status) => {
+    await updateDoc(doc(db, "lgu_requests", id), { status });
+};
+
+window.loadAdminData = () => {
+    const q = query(collection(db, "lgu_requests"), orderBy("timestamp", "desc"));
+    onSnapshot(q, (snap) => {
+        const list = document.getElementById('adminList');
+        list.innerHTML = "";
+        snap.forEach(d => {
+            const data = d.data();
+            list.innerHTML += `
+                <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 flex justify-between items-center shadow-lg">
+                    <div>
+                        <p class="font-black text-blue-300 uppercase leading-none mb-1">${data.email}</p>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase mb-2">Request: ${data.service}</p>
+                        <span class="text-[9px] font-black p-1 bg-slate-900 rounded text-yellow-500 tracking-tighter uppercase">STATUS: ${data.status}</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="updateStatus('${d.id}', 'Ready for Pickup')" class="bg-green-600 hover:bg-green-500 px-3 py-2 rounded font-black text-[9px] transition-all">READY</button>
+                        <button onclick="updateStatus('${d.id}', 'Declined')" class="bg-red-700 hover:bg-red-600 px-3 py-2 rounded font-black text-[9px] transition-all">DECLINE</button>
+                    </div>
+                </div>`;
+        });
+    });
+};
