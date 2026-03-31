@@ -19,7 +19,7 @@ const db = getFirestore(app);
 
 // EMAILJS (Palitan ito!)
 (function(){
-    emailjs.init("service_yk1dfxf");
+    emailjs.init("1HAeeqqDwsp3c4l81");
 })();
 
 let isSignupMode = false;
