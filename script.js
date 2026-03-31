@@ -1,3 +1,78 @@
+// SA PINAKATAAS NG script.js, i-initialize ang EmailJS
+(function(){
+    emailjs.init("dtfCQm0ZvRxH4I6RW"); // Palitan mo ito
+})();
+
+let currentDocId = "";
+let currentCitizenEmail = "";
+
+// ADMIN: Buksan ang Modal
+window.openScheduleModal = (id, email) => {
+    currentDocId = id;
+    currentCitizenEmail = email;
+    document.getElementById('targetEmail').innerText = `SENDING TO: ${email}`;
+    document.getElementById('emailModal').classList.remove('hidden');
+};
+
+window.closeModal = () => document.getElementById('emailModal').classList.add('hidden');
+
+// ADMIN: Send Email at Update Status
+document.getElementById('sendEmailBtn').onclick = async () => {
+    const date = document.getElementById('schedDate').value;
+    const time = document.getElementById('schedTime').value;
+
+    if(!date || !time) return alert("Please set date and time!");
+
+    // 1. Send Email via EmailJS
+    const templateParams = {
+        to_email: currentCitizenEmail,
+        appointment_date: date,
+        appointment_time: time,
+        message: "Your request has been approved. Please visit the LGU Cortes Office on your scheduled time."
+    };
+
+    try {
+        await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams);
+        
+        // 2. Update Firestore Status
+        await updateDoc(doc(db, "lgu_requests", currentDocId), { 
+            status: "Approved",
+            schedule: `${date} @ ${time}`
+        });
+
+        alert("Email Sent and Status Updated!");
+        closeModal();
+    } catch (err) {
+        alert("Failed to send email: " + JSON.stringify(err));
+    }
+};
+
+// I-update ang loadAdminData function para sa bagong UI
+window.loadAdminData = () => {
+    const q = query(collection(db, "lgu_requests"), orderBy("timestamp", "desc"));
+    onSnapshot(q, (snap) => {
+        const list = document.getElementById('adminList');
+        list.innerHTML = "";
+        snap.forEach(d => {
+            const data = d.data();
+            const statusStyle = data.status === 'Approved' ? 'border-green-500' : 'border-slate-700';
+            
+            list.innerHTML += `
+                <div class="bg-slate-800 p-5 rounded-xl border-l-4 ${statusStyle} flex justify-between items-center shadow-lg">
+                    <div>
+                        <p class="font-black text-blue-300 uppercase text-sm">${data.email}</p>
+                        <p class="text-[11px] text-white font-bold mb-1">SERVICE: ${data.service}</p>
+                        <p class="text-[10px] text-slate-500 uppercase">STATUS: <span class="text-yellow-500">${data.status}</span></p>
+                        ${data.schedule ? `<p class="text-[10px] text-green-400 font-bold mt-1">SCHED: ${data.schedule}</p>` : ''}
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openScheduleModal('${d.id}', '${data.email}')" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-black text-[10px] transition-all">APPROVE & SCHED</button>
+                        <button onclick="updateStatus('${d.id}', 'Completed')" class="bg-green-700 hover:bg-green-600 px-4 py-2 rounded font-black text-[10px]">COMPLETE</button>
+                    </div>
+                </div>`;
+        });
+    });
+};
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
