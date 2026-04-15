@@ -1,9 +1,3 @@
-vercel.json
-
-
-
-
-
 {
   "cleanUrls": true
 }
