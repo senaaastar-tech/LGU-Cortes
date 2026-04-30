@@ -24,6 +24,30 @@ let isSignupMode = false;
 let currentDocId = "";
 let currentCitizenEmail = "";
 
+// REQUIREMENTS DATABASE
+const serviceDatabase = {
+    "birth_cert": {
+        office: "Local Civil Registrar Office (LCRO)",
+        reqs: ["Photocopy of Civil Registry Document", "Original Valid ID of Owner", "SPA if representative"]
+    },
+    "marriage_license": {
+        office: "Local Civil Registrar Office (LCRO)",
+        reqs: ["CENOMAR-PSA", "Birth Certificate (PSA Copy)", "Pre-Marriage Counseling Cert"]
+    },
+    "correction_error": {
+        office: "Local Civil Registrar Office (LCRO)",
+        reqs: ["PSA & LCRO Birth Certificate", "Baptismal Certificate", "School Record", "2 Valid IDs"]
+    },
+    "change_name": {
+        office: "Local Civil Registrar Office (LCRO)",
+        reqs: ["PSA Birth Certificate", "NBI, Police & Barangay Clearance", "Newspaper Publication", "Filing Fee: P3,000"]
+    },
+    "business_counseling": {
+        office: "DTI / Negosyo Center",
+        reqs: ["Filled-up Business Counseling Form", "Owner's Valid ID"]
+    }
+};
+
 // --- AUTH LOGIC ---
 window.toggleAuthMode = () => {
     isSignupMode = !isSignupMode;
@@ -33,11 +57,10 @@ window.toggleAuthMode = () => {
     document.getElementById('toggleBtn').innerText = isSignupMode ? "Login" : "Create Account";
 };
 
-// SHOW PASSWORD LOGIC
 window.togglePasswordVisibility = () => {
     const passInput = document.getElementById('authPass');
     const toggle = document.getElementById('showPassToggle');
-    passInput.type = toggle.checked ? "text" : "password";
+    if (passInput) passInput.type = toggle.checked ? "text" : "password";
 };
 
 window.handleAuth = async () => {
@@ -67,12 +90,34 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// --- CITIZEN SUBMIT ---
+// --- CITIZEN PORTAL ---
+window.updateRequirements = () => {
+    const select = document.getElementById('serviceType');
+    const box = document.getElementById('requirementBox');
+    const officeLabel = document.getElementById('targetOffice');
+    const list = document.getElementById('reqList');
+    const selectedValue = select.value;
+
+    if (serviceDatabase[selectedValue]) {
+        box.classList.remove('hidden');
+        officeLabel.innerText = serviceDatabase[selectedValue].office;
+        list.innerHTML = "";
+        serviceDatabase[selectedValue].reqs.forEach(req => {
+            const li = document.createElement('li');
+            li.innerText = req;
+            list.appendChild(li);
+        });
+    } else { box.classList.add('hidden'); }
+};
+
 window.submitRequest = async () => {
     const name = document.getElementById('citizenFullName').value;
     const contact = document.getElementById('citizenContact').value;
     const service = document.getElementById('serviceType').value;
-    if(!name || !contact) return alert("Please fill all citizen details");
+    if(!name || !contact || !service) return alert("Fill all details");
+    
+    const targetOffice = serviceDatabase[service] ? serviceDatabase[service].office : "LCRO";
+
     try {
         await addDoc(collection(db, "lgu_requests"), {
             uid: auth.currentUser.uid,
@@ -80,12 +125,14 @@ window.submitRequest = async () => {
             fullName: name,
             contact: contact,
             service: service,
+            targetOffice: targetOffice,
             status: "Pending",
             timestamp: Date.now()
         });
-        alert("Appointment Submitted Successfully!");
+        alert("Appointment Submitted!");
         document.getElementById('citizenFullName').value = "";
         document.getElementById('citizenContact').value = "";
+        document.getElementById('requirementBox').classList.add('hidden');
     } catch (e) { alert(e.message); }
 };
 
@@ -99,12 +146,13 @@ function loadUserRequests(uid) {
             const data = d.data();
             const color = data.status === 'Approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
             div.innerHTML += `
-                <div class="bg-white p-4 border border-slate-100 rounded-xl shadow-sm flex flex-col gap-2">
+                <div class="bg-white p-4 border border-slate-100 rounded-xl shadow-sm flex flex-col gap-1">
                     <div class="flex justify-between items-center">
-                        <span class="text-xs font-black text-slate-800 uppercase">${data.service}</span>
-                        <span class="${color} text-[8px] font-black px-2 py-1 rounded uppercase tracking-tighter">${data.status}</span>
+                        <span class="text-xs font-black text-slate-800 uppercase">${data.service.replace('_',' ')}</span>
+                        <span class="${color} text-[8px] font-black px-2 py-1 rounded uppercase">${data.status}</span>
                     </div>
-                    ${data.schedule ? `<p class="text-[9px] text-blue-600 font-bold bg-blue-50 p-2 rounded">SCHEDULE: ${data.schedule}</p>` : ''}
+                    <p class="text-[9px] text-slate-400 italic">${data.targetOffice}</p>
+                    ${data.schedule ? `<p class="text-[9px] text-blue-600 font-bold bg-blue-50 p-2 mt-1 rounded">SCHEDULE: ${data.schedule}</p>` : ''}
                 </div>`;
         });
     });
@@ -125,12 +173,7 @@ window.updateStatus = async (id, status) => {
 };
 
 window.deleteRequest = async (id) => {
-    if(confirm("Are you sure you want to delete this record?")) {
-        try {
-            await deleteDoc(doc(db, "lgu_requests", id));
-            alert("Record deleted.");
-        } catch (e) { alert("Error deleting: " + e.message); }
-    }
+    if(confirm("Delete record?")) await deleteDoc(doc(db, "lgu_requests", id));
 };
 
 const sendBtn = document.getElementById('sendEmailBtn');
@@ -139,23 +182,20 @@ if(sendBtn) {
         const date = document.getElementById('schedDate').value;
         const time = document.getElementById('schedTime').value;
         if(!date || !time) return alert("Set schedule first!");
-
         try {
             await emailjs.send('service_yk1dfxf', 'template_agmhyzw', {
                 to_email: currentCitizenEmail,
                 appointment_date: date,
                 appointment_time: time,
-                message: "Please visit LGU Cortes on your scheduled date."
+                message: "Please visit LGU Cortes on your scheduled time."
             });
-
             await updateDoc(doc(db, "lgu_requests", currentDocId), { 
-                status: "Approved",
-                schedule: `${date} @ ${time}`
+                status: "Approved", 
+                schedule: `${date} @ ${time}` 
             });
-
-            alert("Notification Sent!");
+            alert("Sent!");
             closeModal();
-        } catch (e) { alert("Error: " + JSON.stringify(e)); }
+        } catch (e) { alert("Error: " + e); }
     };
 }
 
@@ -167,35 +207,18 @@ window.loadAdminData = () => {
         list.innerHTML = "";
         snap.forEach(d => {
             const data = d.data();
-            const schedInfo = data.schedule 
-                ? `<div class="bg-blue-900/40 p-2 rounded-lg border border-blue-800/50 mt-2">
-                     <p class="text-[9px] text-blue-400 font-black uppercase">Current Schedule:</p>
-                     <p class="text-xs text-white font-bold">${data.schedule}</p>
-                   </div>` 
-                : '';
-
             list.innerHTML += `
-                <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl flex flex-col gap-4">
-                    <div class="flex justify-between items-start">
-                        <div class="flex-1">
-                            <p class="text-[9px] font-black text-blue-500 uppercase mb-1">CITIZEN: ${data.email}</p>
-                            <h4 class="text-lg font-black text-white leading-tight mb-2 uppercase">${data.fullName}</h4>
-                            <div class="space-y-1">
-                                <p class="text-[10px] text-slate-400 uppercase font-bold">Contact: <span class="text-white">${data.contact}</span></p>
-                                <p class="text-[10px] text-slate-400 uppercase font-bold">Service: <span class="text-white">${data.service}</span></p>
-                                <p class="text-[10px] text-slate-400 uppercase font-bold">Status: <span class="${data.status === 'Approved' ? 'text-green-400' : 'text-yellow-400'}">${data.status}</span></p>
-                            </div>
-                            ${schedInfo}
-                        </div>
-                        <button onclick="deleteRequest('${d.id}')" class="text-slate-600 hover:text-red-500 transition-colors p-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                        </button>
+                <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 flex flex-col gap-4">
+                    <div>
+                        <span class="text-[8px] font-black px-2 py-1 bg-blue-500/20 text-blue-400 rounded uppercase">${data.targetOffice}</span>
+                        <h4 class="text-lg font-black text-white mt-2 uppercase">${data.fullName}</h4>
+                        <p class="text-[10px] text-slate-400">${data.email}</p>
+                        <p class="text-[10px] text-slate-400 mt-2 font-bold uppercase">Service: <span class="text-white">${data.service.replace('_',' ')}</span></p>
                     </div>
                     <div class="flex flex-col gap-2 pt-4 border-t border-slate-800">
-                        <button onclick="openScheduleModal('${d.id}', '${data.email}')" class="w-full bg-blue-600 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-blue-500 transition">SET / UPDATE SCHED</button>
-                        <button onclick="updateStatus('${d.id}', 'Completed')" class="w-full bg-green-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-green-600 transition">MARK AS DONE</button>
+                        <button onclick="openScheduleModal('${d.id}', '${data.email}')" class="w-full bg-blue-600 p-3 rounded-xl font-black text-[9px] uppercase">SET SCHED</button>
+                        <button onclick="updateStatus('${d.id}', 'Completed')" class="w-full bg-green-700 p-3 rounded-xl font-black text-[9px] uppercase">DONE</button>
+                        <button onclick="deleteRequest('${d.id}')" class="text-red-500 text-[9px] font-black uppercase mt-2">Delete Record</button>
                     </div>
                 </div>`;
         });
