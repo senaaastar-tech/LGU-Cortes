@@ -114,7 +114,6 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// --- CITIZEN SUBMIT (MULTIPLE FILES HANDLER) ---
 window.submitRequest = async () => {
     const name = document.getElementById('citizenFullName').value;
     const contact = document.getElementById('citizenContact').value;
@@ -134,7 +133,6 @@ window.submitRequest = async () => {
 
         let uploadedUrls = [];
 
-        // Loop para mai-upload isa-isa ang mga napiling files sa Cloudinary
         for (let i = 0; i < fileInput.length; i++) {
             const formData = new FormData();
             formData.append("file", fileInput[i]);
@@ -161,7 +159,7 @@ window.submitRequest = async () => {
             contact: contact,
             service: service,
             department: department,
-            documentUrls: uploadedUrls, // Sinave bilang array para sa multiple files
+            documentUrls: uploadedUrls,
             status: "Pending",
             timestamp: Date.now()
         });
@@ -195,14 +193,13 @@ function loadUserRequests(uid) {
         requests.sort((a, b) => b.timestamp - a.timestamp);
 
         if(requests.length === 0) {
-            div.innerHTML = `<p class="text-slate-400 text-xs italic text-center py-4">Wala pang nakikitang appointment request.</p>`;
+            div.innerHTML = `<p class="text-slate-400 text-xs italic text-center py-4">No appointment requests found.</p>`;
             return;
         }
 
         requests.forEach(data => {
             const color = data.status === 'Approved' ? 'bg-green-100 text-green-700' : (data.status === 'Completed' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700');
             
-            // Render multiple links kung marami ang na-upload
             let docsHtml = '';
             if (data.documentUrls && Array.isArray(data.documentUrls)) {
                 data.documentUrls.forEach((url, index) => {
@@ -212,7 +209,6 @@ function loadUserRequests(uid) {
                 docsHtml = `<a href="${data.documentUrl}" target="_blank" class="text-[10px] text-blue-600 font-bold hover:underline">View Uploaded Doc</a>`;
             }
 
-            // Pwede lang i-cancel kapag Pending pa ang status
             const cancelBtn = data.status === 'Pending' 
                 ? `<button onclick="cancelMyRequest('${data.id}')" class="mt-2 text-[9px] bg-red-50 text-red-600 font-black px-3 py-1.5 rounded-lg hover:bg-red-100 transition uppercase">Cancel Request</button>` 
                 : '';
@@ -232,7 +228,6 @@ function loadUserRequests(uid) {
     });
 }
 
-// Function para ma-cancel/delete ng user ang request nila
 window.cancelMyRequest = async (id) => {
     if(confirm("Do you want to cancel this appointment?")) {
         try {
@@ -244,7 +239,6 @@ window.cancelMyRequest = async (id) => {
     }
 };
 
-// --- ADMIN CONTROL ---
 window.openScheduleModal = (id, email) => {
     currentDocId = id;
     currentCitizenEmail = email;
@@ -312,7 +306,7 @@ window.loadAdminDataByDept = (deptName) => {
         requests.sort((a, b) => b.timestamp - a.timestamp);
 
         if(requests.length === 0) {
-            list.innerHTML = `<p class="text-slate-500 text-xs italic col-span-3 text-center py-10">Wala pang nakikitang request para sa departamentong ito.</p>`;
+            list.innerHTML = `<p class="text-slate-500 text-xs italic col-span-3 text-center py-10">No requests found for this department.</p>`;
             return;
         }
 
