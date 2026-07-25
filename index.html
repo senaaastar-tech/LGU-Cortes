@@ -58,7 +58,7 @@
                 </div>
                 <div>
                     <label class="text-[10px] font-black text-slate-500 uppercase ml-1">Required Service</label>
-                    <select id="serviceType" class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm">
+                    <select id="serviceType" onchange="displayRequirements()" class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm">
                         <option value="" disabled selected>Select service...</option>
                         
                         <optgroup label="Municipal Planning and Development Office">
@@ -125,6 +125,13 @@
                         </optgroup>
                     </select>
                 </div>
+
+                <!-- REQUIREMENTS NOTICE BOX -->
+                <div id="reqBox" class="hidden bg-blue-50 border border-blue-200 p-4 rounded-xl">
+                    <p class="text-[10px] font-black text-blue-700 uppercase mb-1">Required Documents / Info needed:</p>
+                    <p id="reqText" class="text-xs text-blue-900 font-semibold"></p>
+                </div>
+
                 <div>
                     <label class="text-[10px] font-black text-slate-500 uppercase ml-1">Upload Requirements (PDF/Image)</label>
                     <input id="requirementUpload" type="file" accept=".pdf, image/*" class="w-full p-2 bg-white rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 text-sm">
