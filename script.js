@@ -24,6 +24,75 @@ let isSignupMode = false;
 let currentDocId = "";
 let currentCitizenEmail = "";
 
+// --- REQUIREMENTS MAPPING PER SERVICE ---
+const serviceRequirements = {
+    // MPDO
+    "Issuance of Location / Zoning Clearance": "Barangay Clearance, Land Title / Deed of Sale, Tax Declaration, Site Development Plan / Blueprint.",
+    "Issuance of Zoning Certification": "Tax Declaration, Transfer Certificate of Title (TCT), Barangay Certification.",
+    
+    // BPLO
+    "Issuance of Business Permit (New and Renewal)": "DTI/SEC Registration, Barangay Business Clearance, Locational Clearance, Fire Safety Inspection Certificate, Sanitary Permit, Financial Statement / Gross Sales Proof.",
+    
+    // Treasurer
+    "Issuance of Official Receipts on Business Licenses": "Approved Business Permit Application form, Assessment from BPLO.",
+    "Issuance of Community Tax Receipt (CEDULA)": "Valid ID, Proof of Income or previous Cedula.",
+    "Issuance of Official Receipts on Real Property Taxes": "Latest Tax Declaration, Previous Official Receipt / Real Property Tax Clearance.",
+    "Issuance of Certification as to Tax Payments or Tax Clearance": "Latest Real Property Tax Receipt / Official Receipt.",
+    "Issuance of Official Receipt for Water Bill Payment": "Water Billing Statement or Account Number.",
+
+    // Mayor's Office
+    "Issuance of Mayor's Certification / Clearance": "Barangay Clearance, Valid ID, Cedula.",
+
+    // HRMO
+    "Issuance of Service Record": "Request Form, Valid ID / Employee clearance.",
+    "Issuance of Certificate of Employment": "Request Form, Clearance or ID.",
+    "Issuance of Leave Credits": "Leave Application form or tracking record.",
+
+    // MSWDO
+    "Emergency Assistance": "Barangay Certificate of Indigency, Medical Certificate / Abstract (if medical), Valid ID, Police/Fire blotter (if calamity).",
+    "Assistance for Elderly Persons": "Senior Citizen ID, Birth Certificate / Valid ID.",
+    "Handling and Treatment of Children in Conflict with the Law": "Referral letter, Intake sheet, Social Case Study Report.",
+    "Program for Differently Abled Persons / PWD": "PWD ID application form, Medical Certificate indicating disability, Barangay Certificate.",
+    "Monitoring of Day Care Center and Programs": "Center profile, accomplishment reports.",
+    "Anti-Violence Against Women & Their Children Act": "Barangay Protection Order (BPO) or blotter, Medical Certificate (if injured), Narrative statement.",
+
+    // Budget
+    "Certification on Obligation Requests": "Obligation Request and Status (OBR) form, supporting disbursements.",
+    "Preliminary Review of Barangay Budgets": "Barangay Appropriation Ordinance, Annual Budget Proposal, Barangay Resolution.",
+
+    // Civil Registry
+    "Issuance of Transcriptions / Certifications of Civil Registry Documents": "Valid ID of requester, Proof of relationship to document owner.",
+    "Registration of Civil Registry Documents": "Medical Certificate / Hospital record, Affidavit of delayed registration (if applicable).",
+    "Registration of an Application for Marriage License": "Certificate of No Marriage (CENOMAR), Birth Certificates, Pre-Marriage Counseling Certificate, Barangay Clearance.",
+    "Legitimation and Endorsement to PSA": "Joint Affidavit of Legitimation, Affidavit of Acknowledgement, Parents' Marriage Certificate, Child's Birth Certificate.",
+    "Registration of Certificate of Live Birth under RA 9255": "Affidavit of Admission of Paternity, Affidavit to Use the Surname of the Father (AUSF), Live Birth Certificate.",
+    "Petitions under RA 9048 / RA 10172": "Petition form, Baptismal certificate, School records, Employment records, Barangay certification.",
+
+    // Agriculture
+    "Livestock and Animal Treatment": "Request letter from livestock owner, Barangay certification of animal ownership.",
+    "Registration / Accreditation of PO’s to DOLE": "Constitution and By-Laws, List of Officers and Members, Minutes of meetings.",
+    "Processing Fishing Permit": "Barangay Certification, Boat Registration (if applicable), Valid ID.",
+    "Releasing / Distribution of Agricultural Farm Interventions": "Farmers Association membership proof, ID, Request letter.",
+
+    // DILG
+    "Issuance of Certificate of Incumbency for Local Officials": "Sanggunian Resolution or Oath of Office, Official appointment papers.",
+    "Issuance of Certificate for Services Rendered": "Request form, Service records or appointment proof.",
+    "On-line Processing of Barangay Official’s Death and Burial Assistance Claim": "Death Certificate, Barangay Certification of active service, Burial contract/receipts."
+};
+
+window.displayRequirements = () => {
+    const selectedService = document.getElementById('serviceType').value;
+    const reqBox = document.getElementById('reqBox');
+    const reqText = document.getElementById('reqText');
+
+    if (serviceRequirements[selectedService]) {
+        reqText.innerText = serviceRequirements[selectedService];
+        reqBox.classList.remove('hidden');
+    } else {
+        reqBox.classList.add('hidden');
+    }
+};
+
 // --- AUTH LOGIC ---
 window.toggleAuthMode = () => {
     isSignupMode = !isSignupMode;
@@ -33,7 +102,6 @@ window.toggleAuthMode = () => {
     document.getElementById('toggleBtn').innerText = isSignupMode ? "Login" : "Create Account";
 };
 
-// SHOW PASSWORD LOGIC
 window.togglePasswordVisibility = () => {
     const passInput = document.getElementById('authPass');
     const toggle = document.getElementById('showPassToggle');
@@ -78,11 +146,14 @@ window.submitRequest = async () => {
     if(!name || !contact || !service) return alert("Please fill all citizen details and select a service.");
     if(!fileInput) return alert("Please upload the required document.");
 
+    // Alamin kung saang optgroup (departamento) nabibilang ang service para ma-filter ng tamang admin
+    const selectedOption = document.querySelector(`#serviceType option[value="${CSS.escape(service)}"]`);
+    const department = selectedOption ? selectedOption.parentElement.label : "General";
+
     try {
         submitBtn.innerText = "UPLOADING DOCUMENT...";
         submitBtn.disabled = true;
 
-        // Cloudinary Upload
         const formData = new FormData();
         formData.append("file", fileInput);
         formData.append("upload_preset", "lgu_documents");
@@ -98,13 +169,13 @@ window.submitRequest = async () => {
 
         submitBtn.innerText = "SAVING REQUEST...";
 
-        // Save to Firebase Firestore
         await addDoc(collection(db, "lgu_requests"), {
             uid: auth.currentUser.uid,
             email: auth.currentUser.email,
             fullName: name,
             contact: contact,
             service: service,
+            department: department, // Naka-tag na kung saang department ito mapupunta
             documentUrl: fileUrl,
             status: "Pending",
             timestamp: Date.now()
@@ -112,11 +183,11 @@ window.submitRequest = async () => {
 
         alert("Appointment and Document Submitted Successfully!");
         
-        // Reset form
         document.getElementById('citizenFullName').value = "";
         document.getElementById('citizenContact').value = "";
         document.getElementById('serviceType').value = "";
         document.getElementById('requirementUpload').value = "";
+        document.getElementById('reqBox').classList.add('hidden');
         
     } catch (e) { 
         alert(e.message); 
@@ -141,6 +212,7 @@ function loadUserRequests(uid) {
                         <span class="text-xs font-black text-slate-800 uppercase">${data.service}</span>
                         <span class="${color} text-[8px] font-black px-2 py-1 rounded uppercase tracking-tighter">${data.status}</span>
                     </div>
+                    <p class="text-[9px] text-slate-500 font-bold uppercase">Office: ${data.department}</p>
                     ${data.documentUrl ? `<a href="${data.documentUrl}" target="_blank" class="text-[10px] text-blue-600 font-bold hover:underline">View Uploaded Doc</a>` : ''}
                     ${data.schedule ? `<p class="text-[9px] text-blue-600 font-bold bg-blue-50 p-2 rounded mt-1">SCHEDULE: ${data.schedule}</p>` : ''}
                 </div>`;
@@ -148,7 +220,7 @@ function loadUserRequests(uid) {
     });
 }
 
-// --- ADMIN CONTROL ---
+// --- ADMIN CONTROL (FILTERED BY DEPARTMENT) ---
 window.openScheduleModal = (id, email) => {
     currentDocId = id;
     currentCitizenEmail = email;
@@ -197,12 +269,24 @@ if(sendBtn) {
     };
 }
 
-window.loadAdminData = () => {
+// Binago para i-filter ang mga request ayon lang sa naka-login na Department Admin
+window.loadAdminDataByDept = (deptName) => {
     const list = document.getElementById('adminList');
     if(!list) return;
-    const q = query(collection(db, "lgu_requests"), orderBy("timestamp", "desc"));
+    
+    const q = query(
+        collection(db, "lgu_requests"), 
+        where("department", "==", deptName), 
+        orderBy("timestamp", "desc")
+    );
+
     onSnapshot(q, (snap) => {
         list.innerHTML = "";
+        if(snap.empty) {
+            list.innerHTML = `<p class="text-slate-500 text-xs italic col-span-3 text-center py-10">Wala pang nakikitang request para sa departamentong ito.</p>`;
+            return;
+        }
+
         snap.forEach(d => {
             const data = d.data();
             const schedInfo = data.schedule 
