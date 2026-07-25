@@ -72,21 +72,58 @@ window.submitRequest = async () => {
     const name = document.getElementById('citizenFullName').value;
     const contact = document.getElementById('citizenContact').value;
     const service = document.getElementById('serviceType').value;
-    if(!name || !contact) return alert("Please fill all citizen details");
+    const fileInput = document.getElementById('requirementUpload').files[0];
+    const submitBtn = document.getElementById('submitRequestBtn');
+    
+    if(!name || !contact || !service) return alert("Please fill all citizen details and select a service.");
+    if(!fileInput) return alert("Please upload the required document.");
+
     try {
+        submitBtn.innerText = "UPLOADING DOCUMENT...";
+        submitBtn.disabled = true;
+
+        // Cloudinary Upload
+        const formData = new FormData();
+        formData.append("file", fileInput);
+        formData.append("upload_preset", "lgu_documents");
+
+        const res = await fetch("https://api.cloudinary.com/v1_1/pegozmkv/auto/upload", {
+            method: "POST",
+            body: formData
+        });
+        const data = await res.json();
+        const fileUrl = data.secure_url;
+
+        if(!fileUrl) throw new Error("Document upload failed.");
+
+        submitBtn.innerText = "SAVING REQUEST...";
+
+        // Save to Firebase Firestore
         await addDoc(collection(db, "lgu_requests"), {
             uid: auth.currentUser.uid,
             email: auth.currentUser.email,
             fullName: name,
             contact: contact,
             service: service,
+            documentUrl: fileUrl,
             status: "Pending",
             timestamp: Date.now()
         });
-        alert("Appointment Submitted Successfully!");
+
+        alert("Appointment and Document Submitted Successfully!");
+        
+        // Reset form
         document.getElementById('citizenFullName').value = "";
         document.getElementById('citizenContact').value = "";
-    } catch (e) { alert(e.message); }
+        document.getElementById('serviceType').value = "";
+        document.getElementById('requirementUpload').value = "";
+        
+    } catch (e) { 
+        alert(e.message); 
+    } finally {
+        submitBtn.innerText = "SUBMIT APPOINTMENT";
+        submitBtn.disabled = false;
+    }
 };
 
 function loadUserRequests(uid) {
@@ -104,7 +141,8 @@ function loadUserRequests(uid) {
                         <span class="text-xs font-black text-slate-800 uppercase">${data.service}</span>
                         <span class="${color} text-[8px] font-black px-2 py-1 rounded uppercase tracking-tighter">${data.status}</span>
                     </div>
-                    ${data.schedule ? `<p class="text-[9px] text-blue-600 font-bold bg-blue-50 p-2 rounded">SCHEDULE: ${data.schedule}</p>` : ''}
+                    ${data.documentUrl ? `<a href="${data.documentUrl}" target="_blank" class="text-[10px] text-blue-600 font-bold hover:underline">View Uploaded Doc</a>` : ''}
+                    ${data.schedule ? `<p class="text-[9px] text-blue-600 font-bold bg-blue-50 p-2 rounded mt-1">SCHEDULE: ${data.schedule}</p>` : ''}
                 </div>`;
         });
     });
@@ -174,6 +212,10 @@ window.loadAdminData = () => {
                    </div>` 
                 : '';
 
+            const docLink = data.documentUrl 
+                ? `<a href="${data.documentUrl}" target="_blank" class="text-[10px] text-blue-400 uppercase font-black hover:underline mt-1 block">📄 VIEW REQUIREMENT</a>` 
+                : `<p class="text-[10px] text-slate-500 uppercase font-bold mt-1">NO DOC ATTACHED</p>`;
+
             list.innerHTML += `
                 <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl flex flex-col gap-4">
                     <div class="flex justify-between items-start">
@@ -184,6 +226,7 @@ window.loadAdminData = () => {
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Contact: <span class="text-white">${data.contact}</span></p>
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Service: <span class="text-white">${data.service}</span></p>
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Status: <span class="${data.status === 'Approved' ? 'text-green-400' : 'text-yellow-400'}">${data.status}</span></p>
+                                ${docLink}
                             </div>
                             ${schedInfo}
                         </div>
