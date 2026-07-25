@@ -58,15 +58,78 @@
                 </div>
                 <div>
                     <label class="text-[10px] font-black text-slate-500 uppercase ml-1">Required Service</label>
-                    <select id="serviceType" class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                        <option>Cedula</option>
-                        <option>Barangay Clearance</option>
-                        <option>Business Permit (New/Renewal)</option>
-                        <option>Birth Certificate Request</option>
-                        <option>Senior Citizen ID Request</option>
+                    <select id="serviceType" class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm">
+                        <option value="" disabled selected>Select service...</option>
+                        
+                        <optgroup label="Municipal Planning and Development Office">
+                            <option value="Issuance of Location / Zoning Clearance">Issuance of Location / Zoning Clearance</option>
+                            <option value="Issuance of Zoning Certification">Issuance of Zoning Certification</option>
+                        </optgroup>
+
+                        <optgroup label="Business Permit and Licensing Office">
+                            <option value="Issuance of Business Permit (New and Renewal)">Issuance of Business Permit (New and Renewal)</option>
+                        </optgroup>
+
+                        <optgroup label="Office of the Municipal Treasurer">
+                            <option value="Issuance of Official Receipts on Business Licenses">Issuance of Official Receipts on Business Licenses</option>
+                            <option value="Issuance of Community Tax Receipt (CEDULA)">Issuance of Community Tax Receipt (CEDULA)</option>
+                            <option value="Issuance of Official Receipts on Real Property Taxes">Issuance of Official Receipts on Real Property Taxes</option>
+                            <option value="Issuance of Certification as to Tax Payments or Tax Clearance">Issuance of Certification as to Tax Payments or Tax Clearance</option>
+                            <option value="Issuance of Official Receipt for Water Bill Payment">Issuance of Official Receipt for Water Bill Payment</option>
+                        </optgroup>
+
+                        <optgroup label="Local Chief Executive's Office">
+                            <option value="Issuance of Mayor's Certification / Clearance">Issuance of Mayor's Certification / Clearance</option>
+                        </optgroup>
+
+                        <optgroup label="Human Resource Management Office">
+                            <option value="Issuance of Service Record">Issuance of Service Record</option>
+                            <option value="Issuance of Certificate of Employment">Issuance of Certificate of Employment</option>
+                            <option value="Issuance of Leave Credits">Issuance of Leave Credits</option>
+                        </optgroup>
+
+                        <optgroup label="Municipal Social Welfare and Development Office">
+                            <option value="Emergency Assistance">Emergency Assistance</option>
+                            <option value="Assistance for Elderly Persons">Assistance for Elderly Persons</option>
+                            <option value="Handling and Treatment of Children in Conflict with the Law">Handling and Treatment of Children in Conflict with the Law</option>
+                            <option value="Program for Differently Abled Persons / PWD">Program for Differently Abled Persons / PWD</option>
+                            <option value="Monitoring of Day Care Center and Programs">Monitoring of Day Care Center and Programs</option>
+                            <option value="Anti-Violence Against Women & Their Children Act">Anti-Violence Against Women & Their Children Act</option>
+                        </optgroup>
+
+                        <optgroup label="Municipal Budget Officer">
+                            <option value="Certification on Obligation Requests">Certification on Obligation Requests</option>
+                            <option value="Preliminary Review of Barangay Budgets">Preliminary Review of Barangay Budgets</option>
+                        </optgroup>
+
+                        <optgroup label="Local Civil Registry Office">
+                            <option value="Issuance of Transcriptions / Certifications of Civil Registry Documents">Issuance of Transcriptions / Certifications of Civil Registry Documents</option>
+                            <option value="Registration of Civil Registry Documents">Registration of Civil Registry Documents</option>
+                            <option value="Registration of an Application for Marriage License">Registration of an Application for Marriage License</option>
+                            <option value="Legitimation and Endorsement to PSA">Legitimation and Endorsement to PSA</option>
+                            <option value="Registration of Certificate of Live Birth under RA 9255">Registration of Certificate of Live Birth under RA 9255</option>
+                            <option value="Petitions under RA 9048 / RA 10172">Petitions under RA 9048 / RA 10172</option>
+                        </optgroup>
+
+                        <optgroup label="Municipal Agricultural Officer">
+                            <option value="Livestock and Animal Treatment">Livestock and Animal Treatment</option>
+                            <option value="Registration / Accreditation of PO’s to DOLE">Registration / Accreditation of PO’s to DOLE</option>
+                            <option value="Processing Fishing Permit">Processing Fishing Permit</option>
+                            <option value="Releasing / Distribution of Agricultural Farm Interventions">Releasing / Distribution of Agricultural Farm Interventions</option>
+                        </optgroup>
+
+                        <optgroup label="Department of Interior and Local Government (DILG)">
+                            <option value="Issuance of Certificate of Incumbency for Local Officials">Issuance of Certificate of Incumbency for Local Officials</option>
+                            <option value="Issuance of Certificate for Services Rendered">Issuance of Certificate for Services Rendered</option>
+                            <option value="On-line Processing of Barangay Official’s Death and Burial Assistance Claim">On-line Processing of Barangay Official’s Death and Burial Assistance Claim</option>
+                        </optgroup>
                     </select>
                 </div>
-                <button onclick="submitRequest()" class="w-full bg-blue-700 text-white p-4 rounded-xl font-black hover:bg-blue-800 transition shadow-xl active:scale-95">SUBMIT APPOINTMENT</button>
+                <div>
+                    <label class="text-[10px] font-black text-slate-500 uppercase ml-1">Upload Requirements (PDF/Image)</label>
+                    <input id="requirementUpload" type="file" accept=".pdf, image/*" class="w-full p-2 bg-white rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                <button id="submitRequestBtn" onclick="submitRequest()" class="w-full bg-blue-700 text-white p-4 rounded-xl font-black hover:bg-blue-800 transition shadow-xl active:scale-95">SUBMIT APPOINTMENT</button>
             </div>
 
             <div class="mt-10">
