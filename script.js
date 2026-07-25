@@ -234,10 +234,10 @@ function loadUserRequests(uid) {
 
 // Function para ma-cancel/delete ng user ang request nila
 window.cancelMyRequest = async (id) => {
-    if(confirm("Gusto mo bang kanselahin ang appointment na ito?")) {
+    if(confirm("Do you want to cancel this appointment?")) {
         try {
             await deleteDoc(doc(db, "lgu_requests", id));
-            alert("Kanselahin ang request ay matagumpay.");
+            alert("Appointment cancelled successfully");
         } catch (e) {
             alert("Error: " + e.message);
         }
