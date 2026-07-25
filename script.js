@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, query, orderBy, where, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, query, where, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAp1YJkWIUYzWdxTV_awoeOIzfghGkGPCU",
@@ -24,7 +24,6 @@ let isSignupMode = false;
 let currentDocId = "";
 let currentCitizenEmail = "";
 
-// --- REQUIREMENTS MAPPING PER SERVICE ---
 const serviceRequirements = {
     "Issuance of Location / Zoning Clearance": "Barangay Clearance, Land Title / Deed of Sale, Tax Declaration, Site Development Plan / Blueprint.",
     "Issuance of Zoning Certification": "Tax Declaration, Transfer Certificate of Title (TCT), Barangay Certification.",
@@ -74,7 +73,6 @@ window.displayRequirements = () => {
     }
 };
 
-// --- AUTH LOGIC ---
 window.toggleAuthMode = () => {
     isSignupMode = !isSignupMode;
     document.getElementById('authTitle').innerText = isSignupMode ? "Create Citizen Account" : "Citizen Login";
@@ -116,36 +114,43 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// --- CITIZEN SUBMIT ---
+// --- CITIZEN SUBMIT (MULTIPLE FILES HANDLER) ---
 window.submitRequest = async () => {
     const name = document.getElementById('citizenFullName').value;
     const contact = document.getElementById('citizenContact').value;
     const service = document.getElementById('serviceType').value;
-    const fileInput = document.getElementById('requirementUpload').files[0];
+    const fileInput = document.getElementById('requirementUpload').files;
     const submitBtn = document.getElementById('submitRequestBtn');
     
     if(!name || !contact || !service) return alert("Please fill all citizen details and select a service.");
-    if(!fileInput) return alert("Please upload the required document.");
+    if(fileInput.length === 0) return alert("Please upload at least one required document.");
 
     const selectedOption = document.querySelector(`#serviceType option[value="${CSS.escape(service)}"]`);
     const department = selectedOption ? selectedOption.parentElement.label : "General";
 
     try {
-        submitBtn.innerText = "UPLOADING DOCUMENT...";
+        submitBtn.innerText = "UPLOADING DOCUMENTS...";
         submitBtn.disabled = true;
 
-        const formData = new FormData();
-        formData.append("file", fileInput);
-        formData.append("upload_preset", "lgu_documents");
+        let uploadedUrls = [];
 
-        const res = await fetch("https://api.cloudinary.com/v1_1/pegozmkv/auto/upload", {
-            method: "POST",
-            body: formData
-        });
-        const data = await res.json();
-        const fileUrl = data.secure_url;
+        // Loop para mai-upload isa-isa ang mga napiling files sa Cloudinary
+        for (let i = 0; i < fileInput.length; i++) {
+            const formData = new FormData();
+            formData.append("file", fileInput[i]);
+            formData.append("upload_preset", "lgu_documents");
 
-        if(!fileUrl) throw new Error("Document upload failed.");
+            const res = await fetch("https://api.cloudinary.com/v1_1/pegozmkv/auto/upload", {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json();
+            if (data.secure_url) {
+                uploadedUrls.push(data.secure_url);
+            }
+        }
+
+        if(uploadedUrls.length === 0) throw new Error("Document upload failed.");
 
         submitBtn.innerText = "SAVING REQUEST...";
 
@@ -156,12 +161,12 @@ window.submitRequest = async () => {
             contact: contact,
             service: service,
             department: department,
-            documentUrl: fileUrl,
+            documentUrls: uploadedUrls, // Sinave bilang array para sa multiple files
             status: "Pending",
             timestamp: Date.now()
         });
 
-        alert("Appointment and Document Submitted Successfully!");
+        alert("Appointment and Documents Submitted Successfully!");
         
         document.getElementById('citizenFullName').value = "";
         document.getElementById('citizenContact').value = "";
@@ -180,12 +185,38 @@ window.submitRequest = async () => {
 function loadUserRequests(uid) {
     const div = document.getElementById('userStatus');
     if(!div) return;
-    const q = query(collection(db, "lgu_requests"), where("uid", "==", uid), orderBy("timestamp", "desc"));
+    const q = query(collection(db, "lgu_requests"), where("uid", "==", uid));
     onSnapshot(q, (snap) => {
         div.innerHTML = "";
+        let requests = [];
         snap.forEach(d => {
-            const data = d.data();
-            const color = data.status === 'Approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
+            requests.push({ id: d.id, ...d.data() });
+        });
+        requests.sort((a, b) => b.timestamp - a.timestamp);
+
+        if(requests.length === 0) {
+            div.innerHTML = `<p class="text-slate-400 text-xs italic text-center py-4">Wala pang nakikitang appointment request.</p>`;
+            return;
+        }
+
+        requests.forEach(data => {
+            const color = data.status === 'Approved' ? 'bg-green-100 text-green-700' : (data.status === 'Completed' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700');
+            
+            // Render multiple links kung marami ang na-upload
+            let docsHtml = '';
+            if (data.documentUrls && Array.isArray(data.documentUrls)) {
+                data.documentUrls.forEach((url, index) => {
+                    docsHtml += `<a href="${url}" target="_blank" class="text-[10px] text-blue-600 font-bold hover:underline block">📄 View Document ${index + 1}</a>`;
+                });
+            } else if (data.documentUrl) {
+                docsHtml = `<a href="${data.documentUrl}" target="_blank" class="text-[10px] text-blue-600 font-bold hover:underline">View Uploaded Doc</a>`;
+            }
+
+            // Pwede lang i-cancel kapag Pending pa ang status
+            const cancelBtn = data.status === 'Pending' 
+                ? `<button onclick="cancelMyRequest('${data.id}')" class="mt-2 text-[9px] bg-red-50 text-red-600 font-black px-3 py-1.5 rounded-lg hover:bg-red-100 transition uppercase">Cancel Request</button>` 
+                : '';
+
             div.innerHTML += `
                 <div class="bg-white p-4 border border-slate-100 rounded-xl shadow-sm flex flex-col gap-2">
                     <div class="flex justify-between items-center">
@@ -193,12 +224,25 @@ function loadUserRequests(uid) {
                         <span class="${color} text-[8px] font-black px-2 py-1 rounded uppercase tracking-tighter">${data.status}</span>
                     </div>
                     <p class="text-[9px] text-slate-500 font-bold uppercase">Office: ${data.department}</p>
-                    ${data.documentUrl ? `<a href="${data.documentUrl}" target="_blank" class="text-[10px] text-blue-600 font-bold hover:underline">View Uploaded Doc</a>` : ''}
+                    <div class="space-y-0.5">${docsHtml}</div>
                     ${data.schedule ? `<p class="text-[9px] text-blue-600 font-bold bg-blue-50 p-2 rounded mt-1">SCHEDULE: ${data.schedule}</p>` : ''}
+                    ${cancelBtn}
                 </div>`;
         });
     });
 }
+
+// Function para ma-cancel/delete ng user ang request nila
+window.cancelMyRequest = async (id) => {
+    if(confirm("Gusto mo bang kanselahin ang appointment na ito?")) {
+        try {
+            await deleteDoc(doc(db, "lgu_requests", id));
+            alert("Kanselahin ang request ay matagumpay.");
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    }
+};
 
 // --- ADMIN CONTROL ---
 window.openScheduleModal = (id, email) => {
@@ -249,7 +293,6 @@ if(sendBtn) {
     };
 }
 
-// Inayos ang admin query para hindi magka-index error at sasalain sa client-side
 window.loadAdminDataByDept = (deptName) => {
     const list = document.getElementById('adminList');
     if(!list) return;
@@ -266,7 +309,6 @@ window.loadAdminDataByDept = (deptName) => {
             requests.push({ id: d.id, ...d.data() });
         });
 
-        // Sort by timestamp descending (pinakabagong submit sa taas)
         requests.sort((a, b) => b.timestamp - a.timestamp);
 
         if(requests.length === 0) {
@@ -282,9 +324,16 @@ window.loadAdminDataByDept = (deptName) => {
                    </div>` 
                 : '';
 
-            const docLink = data.documentUrl 
-                ? `<a href="${data.documentUrl}" target="_blank" class="text-[10px] text-blue-400 uppercase font-black hover:underline mt-1 block">📄 VIEW REQUIREMENT</a>` 
-                : `<p class="text-[10px] text-slate-500 uppercase font-bold mt-1">NO DOC ATTACHED</p>`;
+            let docsHtml = '';
+            if (data.documentUrls && Array.isArray(data.documentUrls)) {
+                data.documentUrls.forEach((url, index) => {
+                    docsHtml += `<a href="${url}" target="_blank" class="text-[10px] text-blue-400 uppercase font-black hover:underline mt-1 block">📄 VIEW REQUIREMENT ${index + 1}</a>`;
+                });
+            } else if (data.documentUrl) {
+                docsHtml = `<a href="${data.documentUrl}" target="_blank" class="text-[10px] text-blue-400 uppercase font-black hover:underline mt-1 block">📄 VIEW REQUIREMENT</a>`;
+            } else {
+                docsHtml = `<p class="text-[10px] text-slate-500 uppercase font-bold mt-1">NO DOC ATTACHED</p>`;
+            }
 
             list.innerHTML += `
                 <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl flex flex-col gap-4">
@@ -296,7 +345,7 @@ window.loadAdminDataByDept = (deptName) => {
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Contact: <span class="text-white">${data.contact}</span></p>
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Service: <span class="text-white">${data.service}</span></p>
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Status: <span class="${data.status === 'Approved' ? 'text-green-400' : 'text-yellow-400'}">${data.status}</span></p>
-                                ${docLink}
+                                <div class="mt-2">${docsHtml}</div>
                             </div>
                             ${schedInfo}
                         </div>
