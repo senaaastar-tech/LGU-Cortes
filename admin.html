@@ -12,7 +12,8 @@
     <div id="loginSection" class="max-w-sm mx-auto mt-32 p-8 bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl text-center">
         <img src="images/cortes.jpg" alt="Logo" class="w-20 h-20 rounded-full mx-auto mb-6 border-2 border-slate-700 object-cover">
         <h2 class="text-xl font-black mb-6 text-blue-500 tracking-widest uppercase">Staff Access</h2>
-        <input id="adminPass" type="password" placeholder="System Password" class="w-full p-4 mb-4 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500 outline-none">
+        <input id="adminUser" type="text" placeholder="System Username" class="w-full p-4 mb-4 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500 outline-none">
+        <input id="adminPass" type="password" placeholder="System Password" class="w-full p-4 mb-6 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500 outline-none">
         <button onclick="checkAdmin()" class="w-full bg-blue-600 hover:bg-blue-500 p-4 rounded-xl font-black transition-all shadow-lg active:scale-95">LOGIN TO SYSTEM</button>
     </div>
 
@@ -58,11 +59,16 @@
     <script type="module" src="script.js"></script>
     <script>
         function checkAdmin() {
-            if(document.getElementById('adminPass').value === "admin123") {
+            const user = document.getElementById('adminUser').value;
+            const pass = document.getElementById('adminPass').value;
+            
+            if(user === "lgu" && pass === "admin123") {
                 document.getElementById('loginSection').classList.add('hidden');
                 document.getElementById('dashboard').classList.remove('hidden');
                 if (window.loadAdminData) window.loadAdminData();
-            } else { alert("ACCESS DENIED"); }
+            } else { 
+                alert("ACCESS DENIED: Invalid Username or Password"); 
+            }
         }
     </script>
 </body>
