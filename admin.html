@@ -12,7 +12,7 @@
     <div id="loginSection" class="max-w-sm mx-auto mt-20 p-8 bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl text-center">
         <img src="images/cortes.jpg" alt="Logo" class="w-20 h-20 rounded-full mx-auto mb-6 border-2 border-slate-700 object-cover">
         <h2 class="text-xl font-black mb-2 text-blue-500 tracking-widest uppercase">Department Staff Login</h2>
-        <p class="text-[10px] text-slate-400 mb-6">Piliin ang departamento at ilagay ang login credentials.</p>
+        <p class="text-[10px] text-slate-400 mb-6">Select your department and enter your login credentials.</p>
         
         <select id="adminDept" class="w-full p-4 mb-4 rounded-xl bg-slate-800 border-none text-white text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
             <option value="" disabled selected>Select Department...</option>
@@ -28,7 +28,7 @@
             <option value="Department of Interior and Local Government (DILG)">Department of Interior and Local Government (DILG)</option>
         </select>
 
-        <input id="adminUser" type="text" placeholder="Username (e.g. mspo, bplo)" class="w-full p-4 mb-4 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+        <input id="adminUser" type="text" placeholder="Username (e.g. mpdo, bplo)" class="w-full p-4 mb-4 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
         <input id="adminPass" type="password" placeholder="Password" class="w-full p-4 mb-6 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
         <button onclick="checkAdmin()" class="w-full bg-blue-600 hover:bg-blue-500 p-4 rounded-xl font-black transition-all shadow-lg active:scale-95 text-xs">LOGIN TO CONSOLE</button>
     </div>
@@ -78,9 +78,8 @@
             const user = document.getElementById('adminUser').value.trim().toLowerCase();
             const pass = document.getElementById('adminPass').value.trim();
 
-            if(!dept) return alert("Pumili muna ng Department.");
+            if(!dept) return alert("Please select a Department first.");
 
-            // Dictionary ng Department Accounts
             const validAccounts = {
                 "Municipal Planning and Development Office": { u: "mpdo", p: "mpdo123" },
                 "Business Permit and Licensing Office": { u: "bplo", p: "bplo123" },
@@ -102,7 +101,7 @@
                 document.getElementById('deptTitleDisplay').innerText = dept;
                 if (window.loadAdminDataByDept) window.loadAdminDataByDept(dept);
             } else {
-                alert("ACCESS DENIED: Maling username o password para sa departamentong ito.");
+                alert("ACCESS DENIED: Incorrect username or password for this department.");
             }
         }
     </script>
