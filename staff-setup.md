@@ -59,3 +59,28 @@ The browser `alert()` popups have been replaced with animated toast notification
 - Slide-in animation
 - Auto-dismiss progress bar
 - Manual close button
+
+## Admin Console Login (Username/Password)
+
+The admin console keeps the original visible LGU usernames and passwords. Firebase Authentication is used only in the background for Firestore access.
+
+Officer of the Day visible login:
+- Username: `officer`
+- Password: `officer123`
+- Internal Firebase email: `officer@lgu-cortes.local`
+
+Department staff visible logins remain:
+- MPDO: `mpdo` / `mpdo123`
+- BPLO: `bplo` / `bplo123`
+- Treasurer: `treasurer` / `treasurer123`
+- Mayor: `mayor` / `mayor123`
+- HR: `hr` / `hr123`
+- MSWDO: `mswdo` / `mswdo123`
+- Budget: `budget` / `budget123`
+- Civil Registry: `civil` / `civil123`
+- Agriculture: `agri` / `agri123`
+- DILG: `dilg` / `dilg123`
+
+Each corresponding Firebase Authentication user must use the mapped internal email shown in `admin.html` and the same password. The Firebase UID must be the document ID in `staff/{UID}`, with `active: true` and the appropriate role/department.
+
+For Officer of the Day, use `role: "officer_of_day"` and `active: true`.

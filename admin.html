@@ -43,10 +43,10 @@ html{scroll-behavior:smooth}
     </select>
   </div>
 
-  <input id="adminUser" type="email" placeholder="Firebase account email" class="w-full p-4 mt-3 rounded-xl bg-slate-800 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+  <input id="adminUser" type="text" autocomplete="username" placeholder="Username (e.g. mpdo, bplo, officer)" class="w-full p-4 mt-3 rounded-xl bg-slate-800 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm">
   <input id="adminPass" type="password" placeholder="Password" class="w-full p-4 mt-3 mb-5 rounded-xl bg-slate-800 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm">
   <button id="loginBtn" onclick="checkAdmin()" class="w-full bg-blue-600 hover:bg-blue-500 p-4 rounded-xl font-black transition shadow-lg active:scale-95 text-xs">LOGIN TO CONSOLE</button>
-  <p class="text-[9px] text-slate-500 mt-4 text-center">Accounts are authenticated through Firebase Authentication.</p>
+  <p class="text-[9px] text-slate-500 mt-4 text-center">Use the original LGU username and password. Firebase is used in the background for data access.</p>
 </div>
 
 <div id="dashboard" class="hidden max-w-7xl mx-auto">
@@ -120,16 +120,33 @@ window.showAlert=(message,type="info")=>{
 
 window.toggleDepartment=()=>document.getElementById("departmentWrap").classList.toggle("hidden",document.getElementById("adminRole").value==="officer");
 
+const localAccounts={
+  "Municipal Planning and Development Office": {u:"mpdo",p:"mpdo123",email:"mpdo@lgu-cortes.local"},
+  "Business Permit and Licensing Office": {u:"bplo",p:"bplo123",email:"bplo@lgu-cortes.local"},
+  "Office of the Municipal Treasurer": {u:"treasurer",p:"treasurer123",email:"treasurer@lgu-cortes.local"},
+  "Local Chief Executive's Office": {u:"mayor",p:"mayor123",email:"mayor@lgu-cortes.local"},
+  "Human Resource Management Office": {u:"hr",p:"hr123",email:"hr@lgu-cortes.local"},
+  "Municipal Social Welfare and Development Office": {u:"mswdo",p:"mswdo123",email:"mswdo@lgu-cortes.local"},
+  "Municipal Budget Officer": {u:"budget",p:"budget123",email:"budget@lgu-cortes.local"},
+  "Local Civil Registry Office": {u:"civil",p:"civil123",email:"civil@lgu-cortes.local"},
+  "Municipal Agricultural Officer": {u:"agri",p:"agri123",email:"agri@lgu-cortes.local"},
+  "Department of Interior and Local Government (DILG)": {u:"dilg",p:"dilg123",email:"dilg@lgu-cortes.local"}
+};
+const officerAccount={u:"officer",p:"officer123",email:"officer@lgu-cortes.local"};
+
 window.checkAdmin=async()=>{
  const role=document.getElementById("adminRole").value, dept=document.getElementById("adminDept").value;
- const email=document.getElementById("adminUser").value.trim(), pass=document.getElementById("adminPass").value;
- if(!email||!pass) return showAlert("Enter your Firebase account email and password.","warning");
+ const username=document.getElementById("adminUser").value.trim().toLowerCase(), pass=document.getElementById("adminPass").value;
+ if(!username||!pass) return showAlert("Enter your username and password.","warning");
  if(role==="staff"&&!dept) return showAlert("Please select your department.","warning");
+ const target=role==="officer"?officerAccount:localAccounts[dept];
+ if(!target || username!==target.u || pass!==target.p) return showAlert("ACCESS DENIED: Incorrect username or password.","error");
  const btn=document.getElementById("loginBtn"); btn.disabled=true; btn.innerText="AUTHENTICATING...";
  try{
-   const cred=await signInWithEmailAndPassword(auth,email,pass);
+   // The user sees the original username/password. Firebase uses the mapped internal email only in the background.
+   const cred=await signInWithEmailAndPassword(auth,target.email,pass);
    const sd=await getDoc(doc(db,"staff",cred.user.uid));
-   if(!sd.exists()||sd.data().active!==true) throw new Error("Your staff account is not authorized.");
+   if(!sd.exists()||sd.data().active!==true) throw new Error("This account is not authorized in the staff collection.");
    const profile=sd.data();
    if(role==="staff" && profile.role!=="staff") throw new Error("This account is not a department staff account.");
    if(role==="staff" && profile.department!==dept) throw new Error("This account is not assigned to the selected department.");
