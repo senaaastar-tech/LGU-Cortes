@@ -12,10 +12,11 @@
     <div id="loginSection" class="max-w-sm mx-auto mt-20 p-8 bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl text-center">
         <img src="images/cortes.jpg" alt="Logo" class="w-20 h-20 rounded-full mx-auto mb-6 border-2 border-slate-700 object-cover">
         <h2 class="text-xl font-black mb-2 text-blue-500 tracking-widest uppercase">Department Staff Login</h2>
-        <p class="text-[10px] text-slate-400 mb-6">Select your department and enter your login credentials.</p>
+        <p class="text-[10px] text-slate-400 mb-6">Select a department for staff access, or choose Officer of the Day to view all schedules.</p>
         
         <select id="adminDept" class="w-full p-4 mb-4 rounded-xl bg-slate-800 border-none text-white text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
-            <option value="" disabled selected>Select Department...</option>
+            <option value="" selected>Select Department...</option>
+            <option value="__OFFICER__">Officer of the Day — View All Schedules</option>
             <option value="Municipal Planning and Development Office">Municipal Planning and Development Office</option>
             <option value="Business Permit and Licensing Office">Business Permit and Licensing Office</option>
             <option value="Office of the Municipal Treasurer">Office of the Municipal Treasurer</option>
@@ -73,10 +74,24 @@
 
     <script type="module" src="script.js"></script>
     <script>
-        window.checkAdmin = function() {
+        window.checkAdmin = async function() {
             const dept = document.getElementById('adminDept').value;
             const user = document.getElementById('adminUser').value.trim().toLowerCase();
             const pass = document.getElementById('adminPass').value.trim();
+
+            if(dept === '__OFFICER__') {
+                if(user !== 'officer' || pass !== 'officer123') return alert("ACCESS DENIED: Incorrect Officer of the Day credentials.");
+                try {
+                    if (window.loginOfficer) await window.loginOfficer();
+                    document.getElementById('loginSection').classList.add('hidden');
+                    document.getElementById('dashboard').classList.remove('hidden');
+                    document.getElementById('deptTitleDisplay').innerText = 'Officer of the Day — All Schedules';
+                    if (window.loadOfficerData) window.loadOfficerData();
+                } catch (e) {
+                    alert("Officer login failed: " + e.message);
+                }
+                return;
+            }
 
             if(!dept) return alert("Please select a Department first.");
 
@@ -94,7 +109,6 @@
             };
 
             const target = validAccounts[dept];
-
             if(target && user === target.u && pass === target.p) {
                 document.getElementById('loginSection').classList.add('hidden');
                 document.getElementById('dashboard').classList.remove('hidden');

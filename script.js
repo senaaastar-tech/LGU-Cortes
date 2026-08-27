@@ -16,6 +16,32 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// Professional animated alert/toast effect (keeps the existing alert messages and behavior).
+window.showAlert = (message, type = "info") => {
+    let host = document.getElementById("alertHost");
+    if (!host) {
+        host = document.createElement("div");
+        host.id = "alertHost";
+        host.className = "fixed top-5 right-5 z-[9999] w-[min(92vw,380px)] space-y-3 pointer-events-none";
+        document.body.appendChild(host);
+    }
+    const toast = document.createElement("div");
+    const tone = type === "error" ? "border-red-200 bg-white" : type === "success" ? "border-emerald-200 bg-white" : "border-blue-200 bg-white";
+    const icon = type === "error" ? "!" : type === "success" ? "✓" : "i";
+    toast.className = `pointer-events-auto flex items-start gap-3 p-4 rounded-2xl border ${tone} shadow-2xl translate-x-8 opacity-0 transition-all duration-300 ease-out`;
+    toast.innerHTML = `<span class="w-8 h-8 shrink-0 rounded-xl grid place-items-center font-black text-white ${type === "error" ? "bg-red-500" : type === "success" ? "bg-emerald-500" : "bg-blue-600"}">${icon}</span><div class="min-w-0"><p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">${type === "error" ? "Error" : type === "success" ? "Success" : "Notice"}</p><p class="text-sm font-semibold text-slate-700 leading-5 break-words"></p></div><button class="ml-auto text-slate-400 hover:text-slate-700 text-lg leading-none">×</button>`;
+    toast.querySelector("p:last-of-type").textContent = String(message);
+    const remove = () => {
+        toast.classList.add("translate-x-8", "opacity-0");
+        setTimeout(() => toast.remove(), 300);
+    };
+    toast.querySelector("button").onclick = remove;
+    host.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.remove("translate-x-8", "opacity-0"));
+    setTimeout(remove, 4200);
+};
+window.alert = (message) => window.showAlert(message, /error|denied|failed|incorrect|fill|upload/i.test(String(message)) ? "error" : /success|sent|completed|cancelled|successfully/i.test(String(message)) ? "success" : "info");
+
 (function(){
     emailjs.init("1HAeeqqDwsp3c4l81");
 })();
@@ -370,6 +396,56 @@ if(sendBtn) {
         } catch (e) { alert("Error: " + JSON.stringify(e)); }
     };
 }
+
+window.loginOfficer = async () => {
+    const officerEmail = "officer@lgu-cortes.local";
+    const officerPassword = "officer123";
+    try {
+        await signInWithEmailAndPassword(auth, officerEmail, officerPassword);
+    } catch (e) {
+        if (e.code === "auth/user-not-found") {
+            await createUserWithEmailAndPassword(auth, officerEmail, officerPassword);
+        } else {
+            throw e;
+        }
+    }
+    return true;
+};
+
+window.loadOfficerData = () => {
+    const list = document.getElementById('adminList');
+    if(!list) return;
+    const q = query(collection(db, "lgu_requests"));
+    onSnapshot(q, (snap) => {
+        list.innerHTML = "";
+        let requests = [];
+        snap.forEach(d => requests.push({ id: d.id, ...d.data() }));
+        requests.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        if(requests.length === 0) {
+            list.innerHTML = `<p class="text-slate-500 text-xs italic col-span-3 text-center py-10">No requests or schedules found.</p>`;
+            return;
+        }
+        requests.forEach(data => {
+            const statusClass = data.status === 'Approved' ? 'text-green-400' : data.status === 'Completed' ? 'text-blue-400' : 'text-yellow-400';
+            const schedule = data.schedule ? `<div class="bg-blue-900/40 p-3 rounded-xl border border-blue-800/50 mt-3"><p class="text-[9px] text-blue-400 font-black uppercase">Schedule</p><p class="text-sm text-white font-bold mt-1">${data.schedule}</p></div>` : `<div class="bg-slate-800 p-3 rounded-xl mt-3"><p class="text-[9px] text-slate-500 font-black uppercase">Schedule</p><p class="text-xs text-slate-400 font-bold mt-1">Not scheduled</p></div>`;
+            list.innerHTML += `
+                <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
+                    <div class="flex justify-between gap-4">
+                        <div class="min-w-0">
+                            <p class="text-[9px] font-black text-blue-500 uppercase mb-1">${data.department || 'General'}</p>
+                            <h4 class="text-lg font-black text-white leading-tight uppercase">${data.fullName || 'Unnamed Citizen'}</h4>
+                            <div class="space-y-1 mt-3">
+                                <p class="text-[10px] text-slate-400 uppercase font-bold">Service: <span class="text-white">${data.service || '—'}</span></p>
+                                <p class="text-[10px] text-slate-400 uppercase font-bold">Username / Email: <span class="text-white">${data.email || '—'}</span></p>
+                                <p class="text-[10px] text-slate-400 uppercase font-bold">Status: <span class="${statusClass}">${data.status || 'Pending'}</span></p>
+                            </div>
+                            ${schedule}
+                        </div>
+                    </div>
+                </div>`;
+        });
+    });
+};
 
 window.loadAdminDataByDept = (deptName) => {
     const list = document.getElementById('adminList');
