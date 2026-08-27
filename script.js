@@ -76,6 +76,8 @@ window.displayRequirements = () => {
 
 window.openPortal = () => {
     document.getElementById('landingPage')?.classList.add('hidden');
+    document.getElementById('faq')?.classList.add('hidden');
+    document.getElementById('landingFooter')?.classList.add('hidden');
     document.getElementById('portalPage')?.classList.remove('hidden');
     window.scrollTo({top:0, behavior:'smooth'});
 };
@@ -84,6 +86,8 @@ window.closePortal = () => {
     if (auth.currentUser) return;
     document.getElementById('portalPage')?.classList.add('hidden');
     document.getElementById('landingPage')?.classList.remove('hidden');
+    document.getElementById('faq')?.classList.remove('hidden');
+    document.getElementById('landingFooter')?.classList.remove('hidden');
     window.scrollTo({top:0, behavior:'smooth'});
 };
 
@@ -176,6 +180,8 @@ onAuthStateChanged(auth, (user) => {
     const portal = document.getElementById('portalPage');
     if(user && authDiv) {
         landing?.classList.add('hidden');
+        document.getElementById('faq')?.classList.add('hidden');
+        document.getElementById('landingFooter')?.classList.add('hidden');
         portal?.classList.remove('hidden');
         authDiv.classList.add('hidden');
         appDiv?.classList.remove('hidden');
@@ -186,6 +192,8 @@ onAuthStateChanged(auth, (user) => {
         appDiv?.classList.add('hidden');
         // Keep the landing page as the default public view.
         landing?.classList.remove('hidden');
+        document.getElementById('faq')?.classList.remove('hidden');
+        document.getElementById('landingFooter')?.classList.remove('hidden');
         portal?.classList.add('hidden');
     }
 });
