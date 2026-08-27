@@ -6,10 +6,6 @@ service cloud.firestore {
     function staffDoc() { return get(/databases/$(database)/documents/staff/$(request.auth.uid)); }
     function isStaff() { return signedIn() && staffDoc().data.active == true; }
     function isStaffFor(dept) { return isStaff() && staffDoc().data.department == dept; }
-    function isOfficerOfDay() {
-      return isStaff() &&
-        (staffDoc().data.role == 'officer' || staffDoc().data.role == 'officer_of_day');
-    }
 
     match /lgu_profiles/{uid} {
       allow create: if isOwner(uid);
@@ -27,19 +23,13 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.status == 'Pending';
-
-      // Department staff can only see their own office.
-      // Officer of the Day can view all requests/schedules from every office.
       allow read: if (signedIn() && resource.data.uid == request.auth.uid)
-        || isStaffFor(resource.data.department)
-        || isOfficerOfDay();
-
+        || (isStaffFor(resource.data.department));
       allow update: if isStaffFor(resource.data.department)
         || (signedIn() && resource.data.uid == request.auth.uid
             && resource.data.status == 'Pending'
             && request.resource.data.status == 'Cancelled'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt']));
-
       allow delete: if isStaffFor(resource.data.department);
     }
   }
