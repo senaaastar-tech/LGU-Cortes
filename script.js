@@ -73,6 +73,75 @@ window.displayRequirements = () => {
     }
 };
 
+
+window.openPortal = () => {
+    document.getElementById('landingPage')?.classList.add('hidden');
+    document.getElementById('portalPage')?.classList.remove('hidden');
+    window.scrollTo({top:0, behavior:'smooth'});
+};
+
+window.closePortal = () => {
+    if (auth.currentUser) return;
+    document.getElementById('portalPage')?.classList.add('hidden');
+    document.getElementById('landingPage')?.classList.remove('hidden');
+    window.scrollTo({top:0, behavior:'smooth'});
+};
+
+window.toggleChatbot = () => {
+    const bot = document.getElementById('chatbot');
+    const toggle = document.getElementById('chatToggle');
+    if (!bot) return;
+    bot.classList.toggle('hidden');
+    if (toggle) toggle.classList.toggle('hidden', !bot.classList.contains('hidden'));
+    if (!bot.classList.contains('hidden')) setTimeout(() => document.getElementById('chatInput')?.focus(), 100);
+};
+
+const botAnswers = [
+  {keys:['create','account','register','sign up','signup'], answer:'To create an account, open Citizen Login, click Create Account, enter your email and password, then complete registration.'},
+  {keys:['login','log in','sign in','password'], answer:'Use your registered email and password on the Citizen Login screen. If you are new, choose Create Account first.'},
+  {keys:['appointment','book','apply','request','submit'], answer:'After logging in, fill in your full name and contact number, choose the required service, upload the needed documents, and click Submit Appointment.'},
+  {keys:['requirement','requirements','document','documents','need'], answer:'Select a service in the appointment form to see its required documents. The exact requirements depend on the service you choose.'},
+  {keys:['upload','file','pdf','image'], answer:'You can upload PDF files or images, and you can select multiple files for one request.'},
+  {keys:['track','status','history','pending','approved','completed'], answer:'Log in and scroll to Request History & Status. Your submitted requests and their current status are shown there.'},
+  {keys:['cancel','cancellation'], answer:'A request can be cancelled while its status is Pending. The Cancel Request button appears in your request history when available.'},
+  {keys:['service','services','available'], answer:'The portal covers municipal planning, business permits, treasury, mayor’s office, HR, social welfare, budgeting, civil registry, agriculture, and DILG-related services.'},
+  {keys:['hello','hi','hey','good morning','good afternoon','good evening'], answer:'Hello! 👋 I’m the Cortes Assistant. Ask me about accounts, appointments, requirements, document uploads, or request status.'}
+];
+
+window.getBotAnswer = (question) => {
+    const q = question.toLowerCase().trim();
+    if (!q) return 'Please type a question and I’ll try to help.';
+    const match = botAnswers.find(item => item.keys.some(key => q.includes(key)));
+    return match ? match.answer : 'I can help with common questions about creating an account, logging in, booking appointments, service requirements, document uploads, cancellations, and tracking request status. Try asking one of those topics.';
+};
+
+window.addBotMessage = (text, user=false) => {
+    const box = document.getElementById('chatMessages');
+    if (!box) return;
+    const row = document.createElement('div');
+    row.className = user ? 'flex justify-end' : 'flex gap-2';
+    row.innerHTML = user
+      ? `<div class="max-w-[85%] bg-blue-700 text-white rounded-2xl rounded-tr-sm p-3 text-xs">${escapeHtml(text)}</div>`
+      : `<div class="w-7 h-7 shrink-0 rounded-full bg-blue-100 grid place-items-center text-xs">🤖</div><div class="max-w-[85%] bg-white border border-slate-200 rounded-2xl rounded-tl-sm p-3 text-xs text-slate-700">${escapeHtml(text)}</div>`;
+    box.appendChild(row);
+    box.scrollTop = box.scrollHeight;
+};
+
+window.escapeHtml = (value) => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+
+window.askBot = (question) => {
+    addBotMessage(question, true);
+    setTimeout(() => addBotMessage(getBotAnswer(question)), 250);
+};
+
+window.sendChat = () => {
+    const input = document.getElementById('chatInput');
+    const question = input?.value.trim();
+    if (!question) return;
+    input.value = '';
+    askBot(question);
+};
+
 window.toggleAuthMode = () => {
     isSignupMode = !isSignupMode;
     document.getElementById('authTitle').innerText = isSignupMode ? "Create Citizen Account" : "Citizen Login";
@@ -103,14 +172,21 @@ onAuthStateChanged(auth, (user) => {
     const authDiv = document.getElementById('authSection');
     const appDiv = document.getElementById('appSection');
     const emailDisplay = document.getElementById('userDisplayEmail');
+    const landing = document.getElementById('landingPage');
+    const portal = document.getElementById('portalPage');
     if(user && authDiv) {
+        landing?.classList.add('hidden');
+        portal?.classList.remove('hidden');
         authDiv.classList.add('hidden');
-        appDiv.classList.remove('hidden');
+        appDiv?.classList.remove('hidden');
         if(emailDisplay) emailDisplay.innerText = user.email;
         loadUserRequests(user.uid);
     } else if (authDiv) {
         authDiv.classList.remove('hidden');
-        appDiv.classList.add('hidden');
+        appDiv?.classList.add('hidden');
+        // Keep the landing page as the default public view.
+        landing?.classList.remove('hidden');
+        portal?.classList.add('hidden');
     }
 });
 

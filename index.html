@@ -3,20 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LGU Cortes Connect | Official</title>
+    <title>LGU Cortes Connect | Citizen Services Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <style>
+      html { scroll-behavior:smooth; }
+      body { min-height:100vh; }
+      .glass { background:rgba(255,255,255,.82); backdrop-filter:blur(14px); }
+      .hero-bg { background: radial-gradient(circle at 85% 15%, rgba(59,130,246,.25), transparent 35%), linear-gradient(135deg,#0f2d68 0%,#1455a8 52%,#0f766e 100%); }
+      .chat-scroll { max-height:360px; overflow-y:auto; }
+      @media (min-height:800px) { .auth-shell { min-height:calc(100vh - 7rem); } }
+    </style>
 </head>
-<body class="bg-slate-100 p-4 font-sans text-slate-900">
-    <div class="max-w-lg mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
-        
-        <div class="bg-blue-800 p-6 text-center text-white">
-            <img src="images/cortes.jpg" alt="Logo" class="w-20 h-20 rounded-full mx-auto mb-3 border-2 border-white object-cover">
-            <h1 class="text-2xl font-black tracking-tighter uppercase">LGU Cortes Connect</h1>
-            <p class="text-[10px] opacity-80 font-bold tracking-widest uppercase">Citizen Services Portal</p>
-        </div>
+<body class="bg-slate-100 font-sans text-slate-900">
 
-        <div id="authSection" class="p-8">
+<!-- LANDING PAGE -->
+<section id="landingPage" class="min-h-screen">
+  <div class="hero-bg text-white">
+    <nav class="max-w-7xl mx-auto px-5 sm:px-8 py-5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="images/cortes.jpg" class="w-11 h-11 rounded-full border-2 border-white/70 object-cover" alt="Cortes">
+        <div><div class="font-black tracking-tight">LGU CORTES</div><div class="text-[9px] uppercase tracking-[.22em] text-blue-100">Connect • Citizen Services</div></div>
+      </div>
+      <button onclick="openPortal()" class="px-4 py-2.5 rounded-xl bg-white text-blue-800 text-xs font-black shadow-lg hover:bg-blue-50 transition">CITIZEN LOGIN</button>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-5 sm:px-8 py-16 sm:py-24 lg:py-28 grid lg:grid-cols-2 gap-12 items-center">
+      <div>
+        <span class="inline-flex px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-[10px] font-black tracking-widest uppercase">Official Citizen Services Portal</span>
+        <h1 class="mt-5 text-4xl sm:text-5xl lg:text-6xl font-black leading-[1.02] tracking-tight">Government services, <span class="text-blue-200">simpler.</span></h1>
+        <p class="mt-6 max-w-xl text-blue-50 leading-7">Apply for municipal services, upload requirements, and track your requests online through one convenient citizen portal.</p>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <button onclick="openPortal()" class="px-6 py-3.5 rounded-xl bg-white text-blue-800 font-black shadow-xl hover:-translate-y-0.5 transition">GET STARTED →</button>
+          <a href="#faq" class="px-6 py-3.5 rounded-xl bg-white/10 border border-white/20 font-black hover:bg-white/15 transition">VIEW FAQ</a>
+        </div>
+        <div class="mt-9 flex gap-7 text-sm text-blue-100">
+          <div><b class="block text-2xl text-white">24/7</b>Online access</div>
+          <div><b class="block text-2xl text-white">1</b>Citizen portal</div>
+          <div><b class="block text-2xl text-white">✓</b>Track requests</div>
+        </div>
+      </div>
+      <div class="hidden lg:block">
+        <div class="glass rounded-3xl p-5 shadow-2xl border border-white/30 max-w-md ml-auto">
+          <div class="bg-white rounded-2xl p-6 text-slate-900">
+            <div class="flex items-center gap-3 mb-6"><div class="w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 grid place-items-center text-xl">🏛️</div><div><b class="block">Cortes Citizen Portal</b><span class="text-xs text-slate-500">Your services at a glance</span></div></div>
+            <div class="space-y-3">
+              <div class="p-4 rounded-2xl bg-slate-50 border border-slate-100"><b class="text-sm">Book an appointment</b><p class="text-xs text-slate-500 mt-1">Choose a service and submit requirements.</p></div>
+              <div class="p-4 rounded-2xl bg-slate-50 border border-slate-100"><b class="text-sm">Upload documents</b><p class="text-xs text-slate-500 mt-1">Submit PDF or image requirements securely.</p></div>
+              <div class="p-4 rounded-2xl bg-slate-50 border border-slate-100"><b class="text-sm">Track your request</b><p class="text-xs text-slate-500 mt-1">Check the latest status from your dashboard.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" class="bg-white py-16 sm:py-20">
+  <div class="max-w-5xl mx-auto px-5 sm:px-8">
+    <div class="text-center mb-10"><span class="text-[10px] font-black tracking-[.25em] text-blue-700 uppercase">Help Center</span><h2 class="text-3xl sm:text-4xl font-black mt-2">Frequently Asked Questions</h2><p class="text-slate-500 mt-3">Quick answers to common questions about the portal.</p></div>
+    <div class="grid md:grid-cols-2 gap-4">
+      <details class="group p-5 rounded-2xl border border-slate-200"><summary class="font-black cursor-pointer list-none flex justify-between">How do I create an account?<span class="text-blue-600 group-open:rotate-45 transition">＋</span></summary><p class="text-sm text-slate-500 mt-3 leading-6">Click Get Started or Citizen Login, then choose Create Account and register using your email and password.</p></details>
+      <details class="group p-5 rounded-2xl border border-slate-200"><summary class="font-black cursor-pointer list-none flex justify-between">How do I submit a request?<span class="text-blue-600 group-open:rotate-45 transition">＋</span></summary><p class="text-sm text-slate-500 mt-3 leading-6">Log in, enter your details, select a service, review the required documents, upload your files, then submit the appointment.</p></details>
+      <details class="group p-5 rounded-2xl border border-slate-200"><summary class="font-black cursor-pointer list-none flex justify-between">What files can I upload?<span class="text-blue-600 group-open:rotate-45 transition">＋</span></summary><p class="text-sm text-slate-500 mt-3 leading-6">The portal accepts PDF files and images. Multiple files can be uploaded for one request.</p></details>
+      <details class="group p-5 rounded-2xl border border-slate-200"><summary class="font-black cursor-pointer list-none flex justify-between">How can I check my request status?<span class="text-blue-600 group-open:rotate-45 transition">＋</span></summary><p class="text-sm text-slate-500 mt-3 leading-6">After logging in, your Request History & Status section shows your submitted requests and their latest status.</p></details>
+      <details class="group p-5 rounded-2xl border border-slate-200"><summary class="font-black cursor-pointer list-none flex justify-between">Can I cancel a request?<span class="text-blue-600 group-open:rotate-45 transition">＋</span></summary><p class="text-sm text-slate-500 mt-3 leading-6">Pending requests can be cancelled from your dashboard. Requests that have already progressed may no longer show the cancel option.</p></details>
+      <details class="group p-5 rounded-2xl border border-slate-200"><summary class="font-black cursor-pointer list-none flex justify-between">I still have a question. What can I do?<span class="text-blue-600 group-open:rotate-45 transition">＋</span></summary><p class="text-sm text-slate-500 mt-3 leading-6">Use the blue chatbot button in the lower-right corner for quick answers to common portal and service questions.</p></details>
+    </div>
+  </div>
+</section>
+
+<footer class="bg-slate-950 text-slate-400 py-8 text-center text-xs">
+  <p class="font-black text-white">LGU CORTES CONNECT</p><p class="mt-1">Citizen Services Portal</p>
+</footer>
+
+<!-- PORTAL -->
+<main id="portalPage" class="hidden min-h-screen bg-slate-100">
+  <div class="auth-shell w-full max-w-6xl mx-auto px-3 sm:px-5 py-4 sm:py-7 flex items-center justify-center">
+    <div class="w-full bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+      <div class="bg-blue-800 px-5 sm:px-8 py-5 sm:py-6 text-white flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 sm:gap-4">
+          <img src="images/cortes.jpg" alt="Logo" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-white object-cover">
+          <div><h1 class="text-lg sm:text-2xl font-black tracking-tight uppercase">LGU Cortes Connect</h1><p class="text-[9px] sm:text-[10px] opacity-80 font-bold tracking-widest uppercase">Citizen Services Portal</p></div>
+        </div>
+        <button onclick="closePortal()" class="text-[10px] font-black bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl">← HOME</button>
+      </div>
+
+      <div id="authSection" class="p-8">
             <h2 id="authTitle" class="text-xl font-bold mb-6 text-center">Citizen Access</h2>
             <div class="space-y-4">
                 <input id="authEmail" type="email" placeholder="Email Address" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
@@ -37,7 +111,8 @@
             </div>
         </div>
 
-        <div id="appSection" class="hidden p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        
+      <div id="appSection" class="hidden p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div class="flex justify-between items-center mb-6 border-b pb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase">Logged in as:</p>
@@ -144,7 +219,36 @@
                 <div id="userStatus" class="space-y-3"></div>
             </div>
         </div>
+    
     </div>
-    <script type="module" src="script.js"></script>
+  </div>
+</main>
+
+<!-- CHATBOT -->
+<button id="chatToggle" onclick="toggleChatbot()" class="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full bg-blue-700 text-white shadow-2xl hover:bg-blue-800 hover:scale-105 transition grid place-items-center text-2xl" aria-label="Open chatbot">💬</button>
+<div id="chatbot" class="hidden fixed bottom-5 right-5 z-50 w-[calc(100vw-2rem)] max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+  <div class="bg-blue-800 text-white p-4 flex items-center justify-between">
+    <div><b class="block">Cortes Assistant</b><span class="text-[10px] text-blue-100">Common questions • Instant answers</span></div>
+    <button onclick="toggleChatbot()" class="text-xl">×</button>
+  </div>
+  <div id="chatMessages" class="chat-scroll p-4 space-y-3 bg-slate-50">
+    <div class="flex gap-2"><div class="w-7 h-7 rounded-full bg-blue-100 grid place-items-center text-xs">🤖</div><div class="bg-white border border-slate-200 rounded-2xl rounded-tl-sm p-3 text-xs text-slate-700">Hi! I can answer common questions about accounts, appointments, requirements, uploads, and request status.</div></div>
+  </div>
+  <div class="p-3 border-t bg-white">
+    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Suggested Questions</p>
+    <div class="flex flex-wrap gap-2 mb-3">
+      <button onclick="askBot('How do I create an account?')" class="bot-chip">Create account</button>
+      <button onclick="askBot('How do I book an appointment?')" class="bot-chip">Book appointment</button>
+      <button onclick="askBot('What documents do I need?')" class="bot-chip">Requirements</button>
+      <button onclick="askBot('How do I track my request?')" class="bot-chip">Track request</button>
+      <button onclick="askBot('Can I cancel my request?')" class="bot-chip">Cancel request</button>
+      <button onclick="askBot('What services are available?')" class="bot-chip">Available services</button>
+    </div>
+    <div class="flex gap-2"><input id="chatInput" onkeydown="if(event.key==='Enter') sendChat()" class="flex-1 p-3 rounded-xl bg-slate-100 text-xs outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ask a question..."><button onclick="sendChat()" class="px-4 rounded-xl bg-blue-700 text-white font-black text-xs">SEND</button></div>
+  </div>
+</div>
+<style>.bot-chip{font-size:10px;font-weight:800;padding:7px 10px;border-radius:999px;background:#eff6ff;color:#1d4ed8}.bot-chip:hover{background:#dbeafe}</style>
+
+<script type="module" src="script.js"></script>
 </body>
 </html>

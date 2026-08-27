@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function staffDoc() { return get(/databases/$(database)/documents/staff/$(request.auth.uid)); }
+    function isStaff() { return signedIn() && staffDoc().data.active == true; }
+    function isStaffFor(dept) { return isStaff() && staffDoc().data.department == dept; }
+
+    match /lgu_profiles/{uid} {
+      allow create: if isOwner(uid);
+      allow read, update: if isOwner(uid);
+      allow delete: if false;
+    }
+
+    match /staff/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update, delete: if false;
+    }
+
+    match /lgu_requests/{requestId} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.status == 'Pending';
+      allow read: if (signedIn() && resource.data.uid == request.auth.uid)
+        || (isStaffFor(resource.data.department));
+      allow update: if isStaffFor(resource.data.department)
+        || (signedIn() && resource.data.uid == request.auth.uid
+            && resource.data.status == 'Pending'
+            && request.resource.data.status == 'Cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt']));
+      allow delete: if isStaffFor(resource.data.department);
+    }
+  }
+}
