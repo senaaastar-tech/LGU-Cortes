@@ -82,13 +82,17 @@
             if(dept === '__OFFICER__') {
                 if(user !== 'officer' || pass !== 'officer123') return alert("ACCESS DENIED: Incorrect Officer of the Day credentials.");
                 try {
-                    if (window.loginOfficer) await window.loginOfficer();
+                    if (typeof window.loginOfficer !== 'function') {
+                        throw new Error("Officer authentication is still loading. Please try again.");
+                    }
+                    await window.loginOfficer();
                     document.getElementById('loginSection').classList.add('hidden');
                     document.getElementById('dashboard').classList.remove('hidden');
                     document.getElementById('deptTitleDisplay').innerText = 'Officer of the Day — All Schedules';
-                    if (window.loadOfficerData) window.loadOfficerData();
+                    if (typeof window.loadOfficerData === 'function') window.loadOfficerData();
                 } catch (e) {
-                    alert("Officer login failed: " + e.message);
+                    console.error('Officer login:', e);
+                    alert("Officer login failed: " + (e?.message || e));
                 }
                 return;
             }

@@ -398,18 +398,33 @@ if(sendBtn) {
 }
 
 window.loginOfficer = async () => {
+    // The Officer login uses the same visible username/password as the
+    // other department logins, while Firebase provides the authenticated
+    // session required to read the schedules.
     const officerEmail = "officer@lgu-cortes.local";
     const officerPassword = "officer123";
+
     try {
         await signInWithEmailAndPassword(auth, officerEmail, officerPassword);
+        return true;
     } catch (e) {
-        if (e.code === "auth/user-not-found") {
-            await createUserWithEmailAndPassword(auth, officerEmail, officerPassword);
-        } else {
-            throw e;
+        // If the dedicated Firebase account has not been created yet,
+        // create it automatically (Email/Password auth must be enabled).
+        if (e.code === "auth/user-not-found" || e.code === "auth/invalid-credential") {
+            try {
+                await createUserWithEmailAndPassword(auth, officerEmail, officerPassword);
+                return true;
+            } catch (createError) {
+                const code = createError.code || "";
+                if (code === "auth/email-already-in-use") {
+                    await signInWithEmailAndPassword(auth, officerEmail, officerPassword);
+                    return true;
+                }
+                throw createError;
+            }
         }
+        throw e;
     }
-    return true;
 };
 
 window.loadOfficerData = () => {
