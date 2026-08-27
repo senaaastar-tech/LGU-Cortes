@@ -1,19 +1,16 @@
-# LGU Cortes — Staff Setup
+# LGU Cortes — Staff & Officer of the Day Setup
 
-The staff console no longer uses passwords embedded in `admin.html`.
-
-## 1. Enable Firebase Authentication
+## 1. Firebase Authentication
 In Firebase Console → Authentication → Sign-in method, enable **Email/Password**.
 
-## 2. Create each staff account
-Create an Email/Password user for every department staff member.
+Create one Firebase Authentication account for every department staff member and one account for the **Officer of the Day**.
 
-## 3. Create the matching Firestore document
-In Firestore, create:
+## 2. Firestore staff documents
+Create a matching document:
 
 `staff/{AUTH_USER_UID}`
 
-with:
+Department staff example:
 
 ```text
 department: "Business Permit and Licensing Office"
@@ -22,15 +19,43 @@ active: true
 role: "staff"
 ```
 
-The `department` value must exactly match the department name used by the citizen service list.
+Officer of the Day example:
 
-Repeat for every authorized staff account.
+```text
+department: "Municipal Administrator's Office"
+email: "officer@example.com"
+active: true
+role: "officer_of_day"
+```
 
-## 4. Deploy Firestore rules
-Upload/deploy `firestore.rules` to Firebase. These rules prevent citizens from reading other citizens' requests and prevent a staff member from reading another department's requests.
+The Officer of the Day does not need to belong to a citizen-service department. Their account is allowed to **view all appointment requests and schedules across every office**, but the dashboard is read-only.
 
-## 5. EmailJS
-The approval email uses the EmailJS service/template already configured in `script.js`. Verify that the service and template are active in your EmailJS account.
+## 3. Deploy Firestore rules
+Deploy the included `firestore.rules`. The rules enforce the access difference:
 
-## 6. Cloudinary
-The citizen upload uses the existing unsigned upload preset. Restrict the preset in Cloudinary as much as possible (allowed formats, file size, folder, and moderation) because browser uploads cannot keep an unsigned preset secret.
+- Department staff → only their assigned department's requests.
+- Officer of the Day → all requests/schedules from all departments.
+- Citizens → only their own requests.
+
+## 4. Officer of the Day dashboard
+Open `admin.html`, select **Officer of the Day**, then sign in using the Firebase account.
+
+The dashboard shows:
+- Total requests
+- Total scheduled appointments
+- Pending requests
+- Number of offices represented
+- Citizen and service information
+- Exact schedule
+- Office/department assigned to each appointment
+- Search and filters by office/status
+
+The Officer of the Day cannot approve, reschedule, complete, or delete requests.
+
+## 5. Alerts
+The browser `alert()` popups have been replaced with animated toast notifications with:
+- Success / error / warning / notice states
+- Icon and title
+- Slide-in animation
+- Auto-dismiss progress bar
+- Manual close button

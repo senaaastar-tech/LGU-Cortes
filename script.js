@@ -16,6 +16,42 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// Modern animated notification instead of browser alert()
+window.showAlert = (message, type = "info") => {
+    const existing = document.getElementById("lguToast");
+    if (existing) existing.remove();
+
+    const styles = {
+        success: { icon: "✓", title: "Success", bar: "bg-emerald-500", iconBg: "bg-emerald-500/15 text-emerald-400" },
+        error:   { icon: "!", title: "Error",   bar: "bg-red-500",     iconBg: "bg-red-500/15 text-red-400" },
+        warning: { icon: "!", title: "Attention", bar: "bg-amber-500", iconBg: "bg-amber-500/15 text-amber-400" },
+        info:    { icon: "i", title: "Notice",  bar: "bg-blue-500",    iconBg: "bg-blue-500/15 text-blue-400" }
+    };
+    const s = styles[type] || styles.info;
+
+    const toast = document.createElement("div");
+    toast.id = "lguToast";
+    toast.className = "fixed top-5 right-5 z-[9999] w-[min(92vw,390px)] translate-x-[120%] opacity-0 transition-all duration-500 ease-out";
+    toast.innerHTML = `
+      <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/95 text-white shadow-2xl backdrop-blur-xl">
+        <div class="p-4 flex items-start gap-3">
+          <div class="w-10 h-10 shrink-0 rounded-xl ${s.iconBg} grid place-items-center font-black">${s.icon}</div>
+          <div class="min-w-0 flex-1">
+            <p class="text-[10px] font-black uppercase tracking-widest opacity-70">${s.title}</p>
+            <p class="mt-1 text-sm font-semibold leading-5 break-words">${String(message)}</p>
+          </div>
+          <button onclick="this.closest('#lguToast').remove()" class="text-slate-500 hover:text-white text-lg leading-none">×</button>
+        </div>
+        <div class="h-1 ${s.bar} toast-progress"></div>
+      </div>`;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.remove("translate-x-[120%]","opacity-0"));
+    setTimeout(() => {
+        toast.classList.add("translate-x-[120%]","opacity-0");
+        setTimeout(() => toast.remove(), 500);
+    }, 4200);
+};
+
 (function(){
     emailjs.init("1HAeeqqDwsp3c4l81");
 })();
@@ -163,11 +199,11 @@ window.togglePasswordVisibility = () => {
 window.handleAuth = async () => {
     const email = document.getElementById('authEmail').value;
     const pass = document.getElementById('authPass').value;
-    if(!email || !pass) return alert("Fill all fields");
+    if(!email || !pass) return showAlert("Fill all fields");
     try {
         if(isSignupMode) await createUserWithEmailAndPassword(auth, email, pass);
         else await signInWithEmailAndPassword(auth, email, pass);
-    } catch (e) { alert(e.message); }
+    } catch (e) { showAlert(e.message); }
 };
 
 window.logout = () => signOut(auth);
@@ -205,8 +241,8 @@ window.submitRequest = async () => {
     const fileInput = document.getElementById('requirementUpload').files;
     const submitBtn = document.getElementById('submitRequestBtn');
     
-    if(!name || !contact || !service) return alert("Please fill all citizen details and select a service.");
-    if(fileInput.length === 0) return alert("Please upload at least one required document.");
+    if(!name || !contact || !service) return showAlert("Please fill all citizen details and select a service.");
+    if(fileInput.length === 0) return showAlert("Please upload at least one required document.");
 
     const selectedOption = document.querySelector(`#serviceType option[value="${CSS.escape(service)}"]`);
     const department = selectedOption ? selectedOption.parentElement.label : "General";
@@ -248,7 +284,7 @@ window.submitRequest = async () => {
             timestamp: Date.now()
         });
 
-        alert("Appointment and Documents Submitted Successfully!");
+        showAlert("Appointment and Documents Submitted Successfully!");
         
         document.getElementById('citizenFullName').value = "";
         document.getElementById('citizenContact').value = "";
@@ -257,7 +293,7 @@ window.submitRequest = async () => {
         document.getElementById('reqBox').classList.add('hidden');
         
     } catch (e) { 
-        alert(e.message); 
+        showAlert(e.message); 
     } finally {
         submitBtn.innerText = "SUBMIT APPOINTMENT";
         submitBtn.disabled = false;
@@ -316,9 +352,9 @@ window.cancelMyRequest = async (id) => {
     if(confirm("Do you want to cancel this appointment?")) {
         try {
             await deleteDoc(doc(db, "lgu_requests", id));
-            alert("Appointment cancelled successfully");
+            showAlert("Appointment cancelled successfully");
         } catch (e) {
-            alert("Error: " + e.message);
+            showAlert("Error: " + e.message);
         }
     }
 };
@@ -340,8 +376,8 @@ window.deleteRequest = async (id) => {
     if(confirm("Are you sure you want to delete this record?")) {
         try {
             await deleteDoc(doc(db, "lgu_requests", id));
-            alert("Record deleted.");
-        } catch (e) { alert("Error deleting: " + e.message); }
+            showAlert("Record deleted.");
+        } catch (e) { showAlert("Error deleting: " + e.message); }
     }
 };
 
@@ -350,7 +386,7 @@ if(sendBtn) {
     sendBtn.onclick = async () => {
         const date = document.getElementById('schedDate').value;
         const time = document.getElementById('schedTime').value;
-        if(!date || !time) return alert("Set schedule first!");
+        if(!date || !time) return showAlert("Set schedule first!");
 
         try {
             await emailjs.send('service_yk1dfxf', 'template_agmhyzw', {
@@ -365,9 +401,9 @@ if(sendBtn) {
                 schedule: `${date} @ ${time}`
             });
 
-            alert("Notification Sent!");
+            showAlert("Notification Sent!");
             closeModal();
-        } catch (e) { alert("Error: " + JSON.stringify(e)); }
+        } catch (e) { showAlert("Error: " + JSON.stringify(e)); }
     };
 }
 
