@@ -92,18 +92,22 @@ window.displayRequirements = () => {
     const reqText = document.getElementById('reqText');
     const otherPurposeBox = document.getElementById('otherPurposeBox');
     const otherPurpose = document.getElementById('otherPurpose');
+    const uploadBox = document.getElementById('uploadRequirementsBox');
+    const uploadLabel = document.getElementById('uploadRequirementsLabel');
 
     if (selectedService === '__OTHER__') {
-        document.getElementById('otherAppointmentNote')?.classList.remove('hidden');
+        uploadBox?.classList.add('hidden');
+        if (uploadLabel) uploadLabel.innerText = 'No document upload required for Other / General Appointment';
         otherPurposeBox?.classList.remove('hidden');
         otherPurpose?.setAttribute('required', 'required');
         reqBox?.classList.add('hidden');
         return;
     }
 
-    document.getElementById('otherAppointmentNote')?.classList.add('hidden');
     otherPurposeBox?.classList.add('hidden');
     otherPurpose?.removeAttribute('required');
+    uploadBox?.classList.remove('hidden');
+    if (uploadLabel) uploadLabel.innerText = 'Upload Requirements (PDF/Image - Can upload multiple files)';
 
     if (serviceRequirements[selectedService]) {
         reqText.innerText = serviceRequirements[selectedService];
@@ -255,12 +259,14 @@ window.submitRequest = async () => {
     const serviceName = service === '__OTHER__' ? "Others / Other Appointment" : service;
 
     try {
-        submitBtn.innerText = "UPLOADING DOCUMENTS...";
         submitBtn.disabled = true;
 
         let uploadedUrls = [];
 
-        for (let i = 0; i < fileInput.length; i++) {
+        if (service !== '__OTHER__') {
+            submitBtn.innerText = "UPLOADING DOCUMENTS...";
+
+            for (let i = 0; i < fileInput.length; i++) {
             const formData = new FormData();
             formData.append("file", fileInput[i]);
             formData.append("upload_preset", "lgu_documents");
@@ -270,12 +276,13 @@ window.submitRequest = async () => {
                 body: formData
             });
             const data = await res.json();
-            if (data.secure_url) {
-                uploadedUrls.push(data.secure_url);
+                if (data.secure_url) {
+                    uploadedUrls.push(data.secure_url);
+                }
             }
-        }
 
-        if(uploadedUrls.length === 0) throw new Error("Document upload failed.");
+            if(uploadedUrls.length === 0) throw new Error("Document upload failed.");
+        }
 
         submitBtn.innerText = "SAVING REQUEST...";
 
