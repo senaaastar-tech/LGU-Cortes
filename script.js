@@ -94,12 +94,14 @@ window.displayRequirements = () => {
     const otherPurpose = document.getElementById('otherPurpose');
 
     if (selectedService === '__OTHER__') {
+        document.getElementById('otherAppointmentNote')?.classList.remove('hidden');
         otherPurposeBox?.classList.remove('hidden');
         otherPurpose?.setAttribute('required', 'required');
         reqBox?.classList.add('hidden');
         return;
     }
 
+    document.getElementById('otherAppointmentNote')?.classList.add('hidden');
     otherPurposeBox?.classList.add('hidden');
     otherPurpose?.removeAttribute('required');
 
@@ -246,7 +248,7 @@ window.submitRequest = async () => {
     
     if(!name || !contact || !service) return alert("Please fill all citizen details and select a service.");
     if(service === '__OTHER__' && !otherPurpose) return alert("Please specify the purpose of your appointment.");
-    if(fileInput.length === 0) return alert("Please upload at least one required document.");
+    if(service !== '__OTHER__' && fileInput.length === 0) return alert("Please upload at least one required document.");
 
     const selectedOption = document.querySelector(`#serviceType option[value="${CSS.escape(service)}"]`);
     const department = service === '__OTHER__' ? "General / Other Concern" : (selectedOption ? selectedOption.parentElement.label : "General");
