@@ -456,110 +456,46 @@ window.loginOfficer = async () => {
     }
 };
 
-let officerRequestsCache = [];
-
-window.clearOfficerFilters = () => {
-    const search = document.getElementById('officerSearch');
-    const status = document.getElementById('officerStatusFilter');
-    const office = document.getElementById('officerOfficeFilter');
-    const sort = document.getElementById('officerSort');
-    if(search) search.value = '';
-    if(status) status.value = 'ALL';
-    if(office) office.value = 'ALL';
-    if(sort) sort.value = 'newest';
-    window.renderOfficerRequests();
-};
-
-window.renderOfficerRequests = () => {
-    const list = document.getElementById('adminList');
-    if(!list) return;
-
-    const search = (document.getElementById('officerSearch')?.value || '').trim().toLowerCase();
-    const status = document.getElementById('officerStatusFilter')?.value || 'ALL';
-    const office = document.getElementById('officerOfficeFilter')?.value || 'ALL';
-    const sort = document.getElementById('officerSort')?.value || 'newest';
-
-    let requests = officerRequestsCache.filter(data => {
-        const haystack = [data.fullName, data.email, data.contact, data.service, data.purpose, data.department, data.status, data.schedule]
-            .filter(Boolean).join(' ').toLowerCase();
-        const statusMatch = status === 'ALL' || (data.status || 'Pending') === status;
-        const officeMatch = office === 'ALL' || (data.department || 'General') === office;
-        return statusMatch && officeMatch && (!search || haystack.includes(search));
-    });
-
-    const parseSchedule = value => {
-        if(!value) return Number.MAX_SAFE_INTEGER;
-        const m = String(value).match(/^(\d{4}-\d{2}-\d{2})\s*@\s*(\d{2}:\d{2})/);
-        if(!m) return Number.MAX_SAFE_INTEGER;
-        return new Date(`${m[1]}T${m[2]}`).getTime() || Number.MAX_SAFE_INTEGER;
-    };
-
-    requests.sort((a,b) => {
-        if(sort === 'oldest') return (a.timestamp || 0) - (b.timestamp || 0);
-        if(sort === 'schedule') return parseSchedule(a.schedule) - parseSchedule(b.schedule);
-        return (b.timestamp || 0) - (a.timestamp || 0);
-    });
-
-    const count = document.getElementById('officerFilterCount');
-    if(count) count.innerText = `Showing ${requests.length} of ${officerRequestsCache.length} appointment${officerRequestsCache.length === 1 ? '' : 's'}`;
-
-    if(requests.length === 0) {
-        list.innerHTML = `<p class="text-slate-500 text-xs italic col-span-3 text-center py-10">No appointments match the selected filters.</p>`;
-        return;
-    }
-
-    list.innerHTML = requests.map(data => {
-        const statusValue = data.status || 'Pending';
-        const statusClass = statusValue === 'Approved' ? 'text-green-400' : statusValue === 'Completed' ? 'text-blue-400' : 'text-yellow-400';
-        const schedule = data.schedule
-            ? `<div class="bg-blue-900/40 p-3 rounded-xl border border-blue-800/50 mt-3"><p class="text-[9px] text-blue-400 font-black uppercase">Schedule</p><p class="text-sm text-white font-bold mt-1">${data.schedule}</p></div>`
-            : `<div class="bg-slate-800 p-3 rounded-xl mt-3"><p class="text-[9px] text-slate-500 font-black uppercase">Schedule</p><p class="text-xs text-slate-400 font-bold mt-1">Not scheduled</p></div>`;
-        return `
-            <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
-                <div class="flex justify-between gap-4">
-                    <div class="min-w-0">
-                        <p class="text-[9px] font-black text-blue-500 uppercase mb-1">${data.department || 'General'}</p>
-                        <h4 class="text-lg font-black text-white leading-tight uppercase">${data.fullName || 'Unnamed Citizen'}</h4>
-                        <div class="space-y-1 mt-3">
-                            <p class="text-[10px] text-slate-400 uppercase font-bold">Contact: <span class="text-white">${data.contact || '—'}</span></p>
-                            <p class="text-[10px] text-slate-400 uppercase font-bold">Service: <span class="text-white">${data.service || '—'}</span></p>
-                            ${data.purpose ? `<p class="text-[10px] text-slate-400 uppercase font-bold">Purpose: <span class="text-white">${data.purpose}</span></p>` : ''}
-                            <p class="text-[10px] text-slate-400 uppercase font-bold">Username / Email: <span class="text-white">${data.email || '—'}</span></p>
-                            <p class="text-[10px] text-slate-400 uppercase font-bold">Status: <span class="${statusClass}">${statusValue}</span></p>
-                        </div>
-                        ${schedule}
-                    </div>
-                </div>
-                <div class="flex flex-col gap-2 pt-4 mt-4 border-t border-slate-800">
-                    <button onclick="openScheduleModal('${data.id}', '${String(data.email || '').replace(/'/g, "\\'")}')" class="w-full bg-blue-600 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-blue-500 transition">SET / UPDATE SCHEDULE</button>
-                    <div class="flex gap-2">
-                        ${statusValue !== 'Completed' ? `<button onclick="updateStatus('${data.id}', 'Completed')" class="flex-1 bg-green-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-green-600 transition">MARK AS DONE</button>` : `<button disabled class="flex-1 bg-slate-800 text-slate-500 p-3 rounded-xl font-black text-[9px] uppercase cursor-not-allowed">COMPLETED</button>`}
-                        <button onclick="deleteRequest('${data.id}')" class="flex-1 bg-red-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-red-600 transition">DELETE</button>
-                    </div>
-                </div>
-            </div>`;
-    }).join('');
-};
-
 window.loadOfficerData = () => {
     const list = document.getElementById('adminList');
     if(!list) return;
     const q = query(collection(db, "lgu_requests"));
     onSnapshot(q, (snap) => {
-        officerRequestsCache = [];
-        snap.forEach(d => officerRequestsCache.push({ id: d.id, ...d.data() }));
-
-        const officeSelect = document.getElementById('officerOfficeFilter');
-        if(officeSelect) {
-            const current = officeSelect.value || 'ALL';
-            const offices = [...new Set(officerRequestsCache.map(r => r.department || 'General'))].sort((a,b) => a.localeCompare(b));
-            officeSelect.innerHTML = `<option value="ALL">All Offices</option>` + offices.map(o => `<option value="${String(o).replace(/"/g, '&quot;')}">${o}</option>`).join('');
-            officeSelect.value = offices.includes(current) ? current : 'ALL';
+        list.innerHTML = "";
+        let requests = [];
+        snap.forEach(d => requests.push({ id: d.id, ...d.data() }));
+        requests.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        if(requests.length === 0) {
+            list.innerHTML = `<p class="text-slate-500 text-xs italic col-span-3 text-center py-10">No requests or schedules found.</p>`;
+            return;
         }
-        window.renderOfficerRequests();
-    }, (error) => {
-        console.error('Officer schedule listener:', error);
-        list.innerHTML = `<p class="text-red-400 text-xs col-span-3 text-center py-10">Unable to load schedules: ${error.message}</p>`;
+        requests.forEach(data => {
+            const statusClass = data.status === 'Approved' ? 'text-green-400' : data.status === 'Completed' ? 'text-blue-400' : 'text-yellow-400';
+            const schedule = data.schedule ? `<div class="bg-blue-900/40 p-3 rounded-xl border border-blue-800/50 mt-3"><p class="text-[9px] text-blue-400 font-black uppercase">Schedule</p><p class="text-sm text-white font-bold mt-1">${data.schedule}</p></div>` : `<div class="bg-slate-800 p-3 rounded-xl mt-3"><p class="text-[9px] text-slate-500 font-black uppercase">Schedule</p><p class="text-xs text-slate-400 font-bold mt-1">Not scheduled</p></div>`;
+            list.innerHTML += `
+                <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
+                    <div class="flex justify-between gap-4">
+                        <div class="min-w-0">
+                            <p class="text-[9px] font-black text-blue-500 uppercase mb-1">${data.department || 'General'}</p>
+                            <h4 class="text-lg font-black text-white leading-tight uppercase">${data.fullName || 'Unnamed Citizen'}</h4>
+                            <div class="space-y-1 mt-3">
+                                <p class="text-[10px] text-slate-400 uppercase font-bold">Service: <span class="text-white">${data.service || '—'}</span></p>
+                                ${data.purpose ? `<p class="text-[10px] text-slate-400 uppercase font-bold">Purpose: <span class="text-white">${data.purpose}</span></p>` : ''}
+                                <p class="text-[10px] text-slate-400 uppercase font-bold">Username / Email: <span class="text-white">${data.email || '—'}</span></p>
+                                <p class="text-[10px] text-slate-400 uppercase font-bold">Status: <span class="${statusClass}">${data.status || 'Pending'}</span></p>
+                            </div>
+                            ${schedule}
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-2 pt-4 mt-4 border-t border-slate-800">
+                        <button onclick="openScheduleModal('${data.id}', '${data.email || ''}')" class="w-full bg-blue-600 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-blue-500 transition">SET / UPDATE SCHEDULE</button>
+                        <div class="flex gap-2">
+                            <button onclick="updateStatus('${data.id}', 'Completed')" class="flex-1 bg-green-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-green-600 transition">MARK AS DONE</button>
+                            <button onclick="deleteRequest('${data.id}')" class="flex-1 bg-red-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-red-600 transition">DELETE</button>
+                        </div>
+                    </div>
+                </div>`;
+        });
     });
 };
 
