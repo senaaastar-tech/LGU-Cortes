@@ -90,6 +90,18 @@ window.displayRequirements = () => {
     const selectedService = document.getElementById('serviceType').value;
     const reqBox = document.getElementById('reqBox');
     const reqText = document.getElementById('reqText');
+    const otherPurposeBox = document.getElementById('otherPurposeBox');
+    const otherPurpose = document.getElementById('otherPurpose');
+
+    if (selectedService === '__OTHER__') {
+        otherPurposeBox?.classList.remove('hidden');
+        otherPurpose?.setAttribute('required', 'required');
+        reqBox?.classList.add('hidden');
+        return;
+    }
+
+    otherPurposeBox?.classList.add('hidden');
+    otherPurpose?.removeAttribute('required');
 
     if (serviceRequirements[selectedService]) {
         reqText.innerText = serviceRequirements[selectedService];
@@ -228,14 +240,17 @@ window.submitRequest = async () => {
     const name = document.getElementById('citizenFullName').value;
     const contact = document.getElementById('citizenContact').value;
     const service = document.getElementById('serviceType').value;
+    const otherPurpose = document.getElementById('otherPurpose')?.value.trim() || "";
     const fileInput = document.getElementById('requirementUpload').files;
     const submitBtn = document.getElementById('submitRequestBtn');
     
     if(!name || !contact || !service) return alert("Please fill all citizen details and select a service.");
+    if(service === '__OTHER__' && !otherPurpose) return alert("Please specify the purpose of your appointment.");
     if(fileInput.length === 0) return alert("Please upload at least one required document.");
 
     const selectedOption = document.querySelector(`#serviceType option[value="${CSS.escape(service)}"]`);
-    const department = selectedOption ? selectedOption.parentElement.label : "General";
+    const department = service === '__OTHER__' ? "General / Other Concern" : (selectedOption ? selectedOption.parentElement.label : "General");
+    const serviceName = service === '__OTHER__' ? "Others / Other Appointment" : service;
 
     try {
         submitBtn.innerText = "UPLOADING DOCUMENTS...";
@@ -267,7 +282,8 @@ window.submitRequest = async () => {
             email: auth.currentUser.email,
             fullName: name,
             contact: contact,
-            service: service,
+            service: serviceName,
+            purpose: service === '__OTHER__' ? otherPurpose : "",
             department: department,
             documentUrls: uploadedUrls,
             status: "Pending",
@@ -279,6 +295,8 @@ window.submitRequest = async () => {
         document.getElementById('citizenFullName').value = "";
         document.getElementById('citizenContact').value = "";
         document.getElementById('serviceType').value = "";
+        if(document.getElementById('otherPurpose')) document.getElementById('otherPurpose').value = "";
+        document.getElementById('otherPurposeBox')?.classList.add('hidden');
         document.getElementById('requirementUpload').value = "";
         document.getElementById('reqBox').classList.add('hidden');
         
@@ -451,6 +469,7 @@ window.loadOfficerData = () => {
                             <h4 class="text-lg font-black text-white leading-tight uppercase">${data.fullName || 'Unnamed Citizen'}</h4>
                             <div class="space-y-1 mt-3">
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Service: <span class="text-white">${data.service || '—'}</span></p>
+                                ${data.purpose ? `<p class="text-[10px] text-slate-400 uppercase font-bold">Purpose: <span class="text-white">${data.purpose}</span></p>` : ''}
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Username / Email: <span class="text-white">${data.email || '—'}</span></p>
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Status: <span class="${statusClass}">${data.status || 'Pending'}</span></p>
                             </div>
@@ -513,6 +532,7 @@ window.loadAdminDataByDept = (deptName) => {
                             <div class="space-y-1">
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Contact: <span class="text-white">${data.contact}</span></p>
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Service: <span class="text-white">${data.service}</span></p>
+                                ${data.purpose ? `<p class="text-[10px] text-slate-400 uppercase font-bold">Purpose: <span class="text-white">${data.purpose}</span></p>` : ''}
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Status: <span class="${data.status === 'Approved' ? 'text-green-400' : 'text-yellow-400'}">${data.status}</span></p>
                                 <div class="mt-2">${docsHtml}</div>
                             </div>
