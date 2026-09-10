@@ -299,13 +299,15 @@ window.submitRequest = async () => {
             timestamp: Date.now()
         });
 
-        alert("Appointment and Documents Submitted Successfully!");
+        alert(service === '__OTHER__' ? "Appointment Submitted Successfully!" : "Appointment and Documents Submitted Successfully!");
         
         document.getElementById('citizenFullName').value = "";
         document.getElementById('citizenContact').value = "";
         document.getElementById('serviceType').value = "";
         if(document.getElementById('otherPurpose')) document.getElementById('otherPurpose').value = "";
         document.getElementById('otherPurposeBox')?.classList.add('hidden');
+        document.getElementById('uploadRequirementsBox')?.classList.remove('hidden');
+        document.getElementById('uploadRequirementsLabel')?.replaceChildren(document.createTextNode('Upload Requirements (PDF/Image - Can upload multiple files)'));
         document.getElementById('requirementUpload').value = "";
         document.getElementById('reqBox').classList.add('hidden');
         
