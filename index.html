@@ -22,7 +22,7 @@
   <div class="hero-bg text-white">
     <nav class="max-w-7xl mx-auto px-5 sm:px-8 py-5 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <img src="images/cortes.jpg" class="w-16 h-16 sm:w-18 sm:h-18 rounded-full border-2 border-white/70 object-cover shadow-lg" alt="Cortes">
+        <img src="images/cortes.jpg" class="w-16 h-16 rounded-full border-2 border-white/70 object-cover" alt="Cortes">
         <div><div class="font-black tracking-tight">LGU CORTES</div><div class="text-[9px] uppercase tracking-[.22em] text-blue-100">Connect • Citizen Services</div></div>
       </div>
       <button onclick="openPortal()" class="px-4 py-2.5 rounded-xl bg-white text-blue-800 text-xs font-black shadow-lg hover:bg-blue-50 transition">CITIZEN LOGIN</button>
@@ -84,7 +84,7 @@
     <div class="w-full bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
       <div class="bg-blue-800 px-5 sm:px-8 py-5 sm:py-6 text-white flex items-center justify-between gap-4">
         <div class="flex items-center gap-3 sm:gap-4">
-          <img src="images/cortes.jpg" alt="Logo" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-white object-cover">
+          <img src="images/cortes.jpg" alt="Logo" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-2 border-white object-cover">
           <div><h1 class="text-lg sm:text-2xl font-black tracking-tight uppercase">LGU Cortes Connect</h1><p class="text-[9px] sm:text-[10px] opacity-80 font-bold tracking-widest uppercase">Citizen Services Portal</p></div>
         </div>
         <button onclick="closePortal()" class="text-[10px] font-black bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl">← HOME</button>
@@ -135,7 +135,6 @@
                     <label class="text-[10px] font-black text-slate-500 uppercase ml-1">Required Service</label>
                     <select id="serviceType" onchange="displayRequirements()" class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm">
                         <option value="" disabled selected>Select service...</option>
-                        <option value="__OTHER__">Others / Other Appointment</option>
                         
                         <optgroup label="Municipal Planning and Development Office">
                             <option value="Issuance of Location / Zoning Clearance">Issuance of Location / Zoning Clearance</option>
@@ -200,11 +199,6 @@
                             <option value="On-line Processing of Barangay Official’s Death and Burial Assistance Claim">On-line Processing of Barangay Official’s Death and Burial Assistance Claim</option>
                         </optgroup>
                     </select>
-                    <div id="otherPurposeBox" class="hidden">
-                        <label class="text-[10px] font-black text-slate-500 uppercase ml-1">Purpose of Appointment</label>
-                        <input id="otherPurpose" type="text" placeholder="e.g. Meeting, consultation, document inquiry, other concern" class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500">
-                        <p class="text-[10px] text-slate-400 mt-1 ml-1">Please specify the purpose so the appropriate office can assist you.</p>
-                    </div>
                 </div>
 
                 <!-- REQUIREMENTS NOTICE BOX -->
