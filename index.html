@@ -11,12 +11,16 @@
       body { min-height:100vh; background:url('images/cortes-bg-blur.png') center center / cover fixed no-repeat; position:relative; }
       body::before { content:""; position:fixed; inset:0; background:rgba(0,0,0,.28); pointer-events:none; z-index:-1; }
       .glass { background:rgba(255,255,255,.94); backdrop-filter:blur(8px); }
-      .hero-bg { position:relative; background:url('images/cortes-bg-blur.png') center center / cover no-repeat; }
+      .hero-bg { position:relative; min-height:100vh; background:url('images/cortes-bg-blur.png') center center / cover no-repeat; }
       .hero-bg h1, .hero-bg p, .hero-bg .tracking-widest { text-shadow:0 2px 8px rgba(0,0,0,.55); }
       #faq { background:rgba(255,255,255,.94) !important; backdrop-filter:blur(3px); }
       #portalPage { background:rgba(15,23,42,.08) !important; }
       .chat-scroll { max-height:360px; overflow-y:auto; }
       @media (min-height:800px) { .auth-shell { min-height:calc(100vh - 7rem); } }
+      #landingPage { min-height:0; }
+      @media (max-width: 640px) {
+        .hero-bg { min-height:100svh; }
+      }
     </style>
 </head>
 <body class="bg-slate-100 font-sans text-slate-900">
