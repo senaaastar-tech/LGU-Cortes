@@ -6,6 +6,22 @@
     <title>LGU Staff | Department Admin Console</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<style>
+        html, body { min-height:100%; }
+        body {
+            position:relative;
+            background:#0b1728 url('images/cortes-bg-blur.png') center center / cover fixed no-repeat;
+        }
+        body::before {
+            content:"";
+            position:fixed;
+            inset:0;
+            background:rgba(2,10,24,.58);
+            pointer-events:none;
+            z-index:0;
+        }
+        body > * { position:relative; z-index:1; }
+    </style>
 </head>
 <body class="bg-slate-950 p-6 text-slate-100 font-sans">
     
