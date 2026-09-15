@@ -242,6 +242,59 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
+// Allow users to remove individual files they selected by mistake before submitting.
+function renderSelectedFiles() {
+    const input = document.getElementById('requirementUpload');
+    const list = document.getElementById('selectedFilesList');
+    if (!input || !list) return;
+
+    const files = Array.from(input.files || []);
+    list.innerHTML = '';
+
+    if (!files.length) return;
+
+    files.forEach((file, index) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200';
+
+        const info = document.createElement('div');
+        info.className = 'min-w-0 flex-1';
+        const name = document.createElement('div');
+        name.className = 'text-xs font-bold text-slate-700 truncate';
+        name.textContent = file.name;
+        const size = document.createElement('div');
+        size.className = 'text-[10px] text-slate-400 mt-0.5';
+        size.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
+        info.append(name, size);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'shrink-0 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 border border-red-100 text-[10px] font-black hover:bg-red-100 transition';
+        removeBtn.textContent = 'REMOVE';
+        removeBtn.onclick = () => {
+            const dt = new DataTransfer();
+            files.forEach((f, i) => {
+                if (i !== index) dt.items.add(f);
+            });
+            input.files = dt.files;
+            renderSelectedFiles();
+        };
+
+        row.append(info, removeBtn);
+        list.appendChild(row);
+    });
+}
+
+function clearSelectedFiles() {
+    const input = document.getElementById('requirementUpload');
+    if (input) input.value = '';
+    renderSelectedFiles();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('requirementUpload')?.addEventListener('change', renderSelectedFiles);
+});
+
 window.submitRequest = async () => {
     const name = document.getElementById('citizenFullName').value;
     const contact = document.getElementById('citizenContact').value;
@@ -308,7 +361,7 @@ window.submitRequest = async () => {
         document.getElementById('otherPurposeBox')?.classList.add('hidden');
         document.getElementById('uploadRequirementsBox')?.classList.remove('hidden');
         document.getElementById('uploadRequirementsLabel')?.replaceChildren(document.createTextNode('Upload Requirements (PDF/Image - Can upload multiple files)'));
-        document.getElementById('requirementUpload').value = "";
+        clearSelectedFiles();
         document.getElementById('reqBox').classList.add('hidden');
         
     } catch (e) { 
