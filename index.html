@@ -140,7 +140,7 @@
                 </div>
                 <div>
                     <label class="text-[10px] font-black text-slate-500 uppercase ml-1">Contact Number</label>
-                    <input id="citizenContact" type="tel" placeholder="0912 345 6789" class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500">
+                    <input id="citizenContact" type="tel" inputmode="numeric" autocomplete="tel" maxlength="11" pattern="09[0-9]{9}" placeholder="09171234567" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div>
                     <label class="text-[10px] font-black text-slate-500 uppercase ml-1">Preferred Schedule</label>
@@ -262,6 +262,25 @@
     
     </div>
   </div>
+
+    <!-- APPOINTMENT SUBMISSION CONFIRMATION -->
+    <div id="appointmentConfirmModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-5 z-[60] backdrop-blur-sm">
+        <div class="bg-white text-slate-900 p-6 rounded-3xl border border-slate-200 max-w-md w-full shadow-2xl">
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <div>
+                    <h3 class="text-xl font-black text-blue-700 uppercase tracking-tight">Confirm Appointment Request</h3>
+                    <p class="text-xs text-slate-500 mt-1">Please review your details before submitting.</p>
+                </div>
+                <button type="button" onclick="closeAppointmentConfirm()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-black hover:bg-slate-200">×</button>
+            </div>
+            <div id="appointmentConfirmSummary" class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm text-slate-900 leading-6"></div>
+            <p class="text-[10px] text-slate-500 mt-3 font-semibold">Make sure the information above is correct before confirming your appointment request.</p>
+            <div class="flex gap-3 mt-5">
+                <button type="button" onclick="closeAppointmentConfirm()" class="flex-1 bg-slate-100 text-slate-700 p-3 rounded-xl font-black text-xs hover:bg-slate-200 transition">CANCEL</button>
+                <button id="confirmAppointmentBtn" type="button" onclick="confirmAndSubmitAppointment()" class="flex-1 bg-blue-600 text-white p-3 rounded-xl font-black text-xs hover:bg-blue-700 transition shadow-lg">CONFIRM &amp; SUBMIT</button>
+            </div>
+        </div>
+    </div>
 </main>
 
 <!-- CHATBOT -->

@@ -467,62 +467,105 @@ if (citizenTimeSelect) {
     });
 }
 
-window.submitRequest = async () => {
-    const name = document.getElementById('citizenFullName').value;
-    const scheduleDate = document.getElementById('citizenScheduleDate')?.value || "";
-    const schedulePeriod = document.getElementById('citizenSchedulePeriod')?.value || "";
-    const scheduleTime = document.getElementById('citizenScheduleTime')?.value || "";
-    const contact = document.getElementById('citizenContact').value;
-    const service = document.getElementById('serviceType').value;
-    const otherPurpose = document.getElementById('otherPurpose')?.value.trim() || "";
-    const fileInput = document.getElementById('requirementUpload').files;
-    const submitBtn = document.getElementById('submitRequestBtn');
+window._pendingAppointment = null;
+
+window.closeAppointmentConfirm = () => {
+    document.getElementById('appointmentConfirmModal')?.classList.add('hidden');
+    window._pendingAppointment = null;
+};
+
+window.submitRequest = () => {
+    const name = document.getElementById('citizenFullName')?.value.trim() || '';
+    const scheduleDate = document.getElementById('citizenScheduleDate')?.value || '';
+    const schedulePeriod = document.getElementById('citizenSchedulePeriod')?.value || '';
+    const scheduleTime = document.getElementById('citizenScheduleTime')?.value || '';
+    const contact = document.getElementById('citizenContact')?.value.trim() || '';
+    const service = document.getElementById('serviceType')?.value || '';
+    const otherPurpose = document.getElementById('otherPurpose')?.value.trim() || '';
+    const fileInput = document.getElementById('requirementUpload')?.files || [];
     const selectedTimeSlot = getTimeSlotByValue(scheduleTime);
 
-    if(!name || !contact || !service || !scheduleDate || !scheduleTime || !schedulePeriod) return alert("Please fill all citizen details and select an available date and time.");
-    if(isOtherService(service) && !otherPurpose) return alert("Please specify the purpose of your appointment.");
-    if(!isOtherService(service) && fileInput.length === 0) return alert("Please upload at least one required document.");
+    if(!name || !contact || !service || !scheduleDate || !scheduleTime || !schedulePeriod) return alert('Please fill all citizen details and select an available date and time.');
+    if(!/^09\d{9}$/.test(contact)) return alert('Please enter a valid Philippine mobile number with exactly 11 digits (example: 09171234567).');
+    if(isOtherService(service) && !otherPurpose) return alert('Please specify the purpose of your appointment.');
+    if(!isOtherService(service) && fileInput.length === 0) return alert('Please upload at least one required document.');
+    if (!isMunicipalWorkingDay(scheduleDate)) return alert('Appointments are available Monday to Friday only.');
+    if (!selectedTimeSlot) return alert('Please choose a valid municipal hall appointment time.');
+    if (selectedTimeSlot.period !== schedulePeriod) return alert('Please choose a valid appointment time.');
 
-    const selectedOption = document.querySelector(`#serviceType option[value="${CSS.escape(service)}"]`);
     const department = getServiceDepartment(service);
-    const serviceName = isOtherService(service) ? "Other / Other Purpose" : service;
+    const serviceName = isOtherService(service) ? 'Other / Other Purpose' : service;
+    const summary = document.getElementById('appointmentConfirmSummary');
+    if (summary) {
+        const safe = (value) => String(value || '—').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const purposeLine = isOtherService(service) ? `<div><span class="font-black text-slate-500">PURPOSE:</span> ${safe(otherPurpose)}</div>` : '';
+        summary.innerHTML = `
+            <div class="space-y-1.5">
+                <div><span class="font-black text-slate-500">FULL NAME:</span> ${safe(name)}</div>
+                <div><span class="font-black text-slate-500">PHONE:</span> ${safe(contact)}</div>
+                <div><span class="font-black text-slate-500">OFFICE:</span> ${safe(department)}</div>
+                <div><span class="font-black text-slate-500">SERVICE:</span> ${safe(serviceName)}</div>
+                ${purposeLine}
+                <div><span class="font-black text-slate-500">DATE:</span> ${safe(scheduleDate)}</div>
+                <div><span class="font-black text-slate-500">TIME:</span> ${safe(selectedTimeSlot.label)}</div>
+            </div>`;
+    }
+    window._pendingAppointment = { name, scheduleDate, schedulePeriod, scheduleTime, contact, service, otherPurpose, department, serviceName };
+    document.getElementById('appointmentConfirmModal')?.classList.remove('hidden');
+};
+
+window.confirmAndSubmitAppointment = async () => {
+    const pending = window._pendingAppointment;
+    if (!pending) return;
+    const { name, scheduleDate, schedulePeriod, scheduleTime, contact, service, otherPurpose, department, serviceName } = pending;
+    const fileInput = document.getElementById('requirementUpload')?.files || [];
+    const submitBtn = document.getElementById('submitRequestBtn');
+    const confirmBtn = document.getElementById('confirmAppointmentBtn');
+    const selectedTimeSlot = getTimeSlotByValue(scheduleTime);
     const availabilityId = makeAvailabilityId(scheduleDate, department);
-    if (!isMunicipalWorkingDay(scheduleDate)) return alert("Appointments are available Monday to Friday only.");
-    if (!selectedTimeSlot) return alert("Please choose a valid municipal hall appointment time.");
-    if (selectedTimeSlot.period !== schedulePeriod) return alert("Please choose a valid appointment time.");
 
     try {
-        submitBtn.disabled = true;
+        if (!auth.currentUser) throw new Error('Your session has expired. Please log in again.');
+        if (!/^09\d{9}$/.test(contact)) throw new Error('Please enter a valid Philippine mobile number with exactly 11 digits.');
+        if (!isMunicipalWorkingDay(scheduleDate)) throw new Error('Appointments are available Monday to Friday only.');
+        if (!selectedTimeSlot || selectedTimeSlot.period !== schedulePeriod) throw new Error('Please choose a valid appointment time.');
+        if(isOtherService(service) && !otherPurpose) throw new Error('Please specify the purpose of your appointment.');
+        if(!isOtherService(service) && fileInput.length === 0) throw new Error('Please upload at least one required document.');
+
+        if (submitBtn) submitBtn.disabled = true;
+        if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.innerText = 'SUBMITTING...'; }
+        document.getElementById('appointmentConfirmModal')?.classList.add('hidden');
+
         const availabilitySnap = await getDoc(doc(db, 'schedule_availability', availabilityId));
-        if (!availabilitySnap.exists()) throw new Error("That office has no schedule available on the selected date.");
+        if (!availabilitySnap.exists()) throw new Error('That office has no schedule available on the selected date.');
         const availability = availabilitySnap.data();
         if (availability.available !== true || availability.department !== department || availability.date !== scheduleDate) {
-            throw new Error("That date is not available for the selected office.");
+            throw new Error('That date is not available for the selected office.');
         }
-        if (!isTimeOpen(availability, scheduleTime)) throw new Error("That appointment time is no longer available. Please choose another available time.");
+        if (!isTimeOpen(availability, scheduleTime)) throw new Error('That appointment time is no longer available. Please choose another available time.');
 
         let uploadedUrls = [];
         if (!isOtherService(service)) {
-            submitBtn.innerText = "UPLOADING DOCUMENTS...";
+            if (submitBtn) submitBtn.innerText = 'UPLOADING DOCUMENTS...';
             for (let i = 0; i < fileInput.length; i++) {
                 const formData = new FormData();
-                formData.append("file", fileInput[i]);
-                formData.append("upload_preset", "lgu_documents");
-                const res = await fetch("https://api.cloudinary.com/v1_1/pegozmkv/auto/upload", { method: "POST", body: formData });
+                formData.append('file', fileInput[i]);
+                formData.append('upload_preset', 'lgu_documents');
+                const res = await fetch('https://api.cloudinary.com/v1_1/pegozmkv/auto/upload', { method: 'POST', body: formData });
                 const data = await res.json();
                 if (data.secure_url) uploadedUrls.push(data.secure_url);
             }
-            if(uploadedUrls.length === 0) throw new Error("Document upload failed.");
+            if(uploadedUrls.length === 0) throw new Error('Document upload failed.');
         }
 
-        submitBtn.innerText = "SAVING REQUEST...";
+        if (submitBtn) submitBtn.innerText = 'SAVING REQUEST...';
         await runTransaction(db, async (transaction) => {
             const ref = doc(db, 'schedule_availability', availabilityId);
             const fresh = await transaction.get(ref);
-            if (!fresh.exists()) throw new Error("This schedule is no longer available. Please refresh and choose another slot.");
+            if (!fresh.exists()) throw new Error('This schedule is no longer available. Please refresh and choose another slot.');
             const a = fresh.data();
             if (a.available !== true || !isTimeOpen(a, scheduleTime)) {
-                throw new Error("That appointment time just became unavailable. Please choose another slot.");
+                throw new Error('That appointment time just became unavailable. Please choose another slot.');
             }
             const field = timeField(scheduleTime);
             const freshBooked = Number(a[field] || 0);
@@ -534,27 +577,27 @@ window.submitRequest = async () => {
                 fullName: name,
                 contact: contact,
                 service: serviceName,
-                purpose: isOtherService(service) ? otherPurpose : "",
+                purpose: isOtherService(service) ? otherPurpose : '',
                 department,
                 scheduleDate,
                 schedulePeriod,
                 scheduleTime,
                 schedule: `${scheduleDate} · ${selectedTimeSlot.label}`,
-                scheduleStatus: "Requested",
+                scheduleStatus: 'Requested',
                 documentUrls: uploadedUrls,
-                status: "Pending",
+                status: 'Pending',
                 timestamp: Date.now()
             });
         });
 
-        alert(isOtherService(service) ? "Appointment Submitted Successfully!" : "Appointment and Documents Submitted Successfully!");
-        document.getElementById('citizenFullName').value = "";
-        document.getElementById('citizenScheduleDate').value = "";
-        document.getElementById('citizenSchedulePeriod').value = "";
-        document.getElementById('citizenScheduleTime').value = "";
-        document.getElementById('citizenContact').value = "";
-        document.getElementById('serviceType').value = "";
-        if(document.getElementById('otherPurpose')) document.getElementById('otherPurpose').value = "";
+        alert(isOtherService(service) ? 'Appointment Submitted Successfully!' : 'Appointment and Documents Submitted Successfully!');
+        document.getElementById('citizenFullName').value = '';
+        document.getElementById('citizenScheduleDate').value = '';
+        document.getElementById('citizenSchedulePeriod').value = '';
+        document.getElementById('citizenScheduleTime').value = '';
+        document.getElementById('citizenContact').value = '';
+        document.getElementById('serviceType').value = '';
+        if(document.getElementById('otherPurpose')) document.getElementById('otherPurpose').value = '';
         document.getElementById('otherPurposeBox')?.classList.add('hidden');
         document.getElementById('uploadRequirementsBox')?.classList.remove('hidden');
         document.getElementById('uploadRequirementsLabel')?.replaceChildren(document.createTextNode('Upload Requirements (PDF/Image - Can upload multiple files)'));
@@ -563,9 +606,11 @@ window.submitRequest = async () => {
         renderUserScheduleCalendar();
     } catch (e) {
         alert(e.message);
+        document.getElementById('appointmentConfirmModal')?.classList.add('hidden');
     } finally {
-        submitBtn.innerText = "SUBMIT APPOINTMENT";
-        submitBtn.disabled = false;
+        window._pendingAppointment = null;
+        if (submitBtn) { submitBtn.innerText = 'SUBMIT APPOINTMENT'; submitBtn.disabled = false; }
+        if (confirmBtn) { confirmBtn.innerText = 'CONFIRM & SUBMIT'; confirmBtn.disabled = false; }
     }
 };
 
@@ -714,7 +759,7 @@ function renderAdminCalendar() {
     const first = new Date(year, month, 1), last = new Date(year, month + 1, 0), start = first.getDay(), total = last.getDate();
     const today = new Date(), todayIso = dateOnlyToIso(today.getFullYear(), today.getMonth(), today.getDate());
     const availability = window._adminAvailability || {};
-    let html = '<div class="grid grid-cols-7 gap-2 text-[9px] font-black text-slate-500 uppercase mb-2">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-2">';
+    let html = '<div class="grid grid-cols-7 gap-2 text-[9px] font-black text-slate-700 uppercase mb-2"> + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-2">';
     for(let i=0;i<start;i++) html += '<div></div>';
     for(let day=1; day<=total; day++) {
         const iso = dateOnlyToIso(year, month, day);
@@ -727,11 +772,13 @@ function renderAdminCalendar() {
             const name = escapeCalendarText(appt.fullName || appt.name || 'Citizen');
             const time = escapeCalendarText(formatCalendarTime(appt.scheduleTime));
             const status = appt.status || 'Pending';
-            const statusClass = status === 'Approved' ? 'text-emerald-300' : status === 'Rejected' ? 'text-red-300' : 'text-amber-300';
-            return `<button type="button" onclick="event.stopPropagation();openCalendarAppointment('${appt.id}')" class="w-full text-left mt-1 px-1.5 py-1.5 rounded-lg bg-blue-950/80 hover:bg-slate-700 border border-blue-700/70 transition"><span class="block text-[8px] font-black text-blue-300 truncate">${time}</span><span class="block text-[9px] font-black text-white leading-tight">${name}</span><span class="block text-[7px] font-black uppercase ${statusClass}">${escapeCalendarText(status)}</span></button>`;
+            const statusClass = status === 'Approved' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : status === 'Rejected' || status === 'Cancelled' ? 'bg-red-50 border-red-200 text-red-700' : status === 'Completed' ? 'bg-slate-100 border-slate-300 text-slate-700' : 'bg-amber-50 border-amber-200 text-amber-700';
+            const statusTextClass = status === 'Approved' ? 'text-emerald-700' : status === 'Rejected' || status === 'Cancelled' ? 'text-red-700' : status === 'Completed' ? 'text-slate-600' : 'text-amber-700';
+            return `<button type="button" onclick="event.stopPropagation();openCalendarAppointment('${appt.id}')" class="w-full text-left mt-1 px-1.5 py-1.5 rounded-lg ${statusClass} hover:shadow-sm transition border"><span class="block text-[8px] font-black text-slate-900 truncate">${time}</span><span class="block text-[9px] font-black text-slate-900 leading-tight truncate">${name}</span><span class="block text-[7px] font-black uppercase ${statusTextClass}">${escapeCalendarText(status)}</span></button>`;
         }).join('');
-        const moreHtml = dayAppointments.length > 4 ? `<span class="block text-[7px] mt-1 text-slate-400 font-black">+${dayAppointments.length - 4} MORE APPOINTMENT${dayAppointments.length - 4 === 1 ? '' : 'S'}</span>` : '';
-        html += `<div class="min-h-[128px] p-2 rounded-xl border text-left transition ${selected?'bg-blue-600/20 border-blue-500':'bg-slate-800 border-slate-700'} ${disabled?'opacity-35':'hover:border-blue-500'}"><button type="button" ${disabled?'disabled':''} onclick="editScheduleDate('${iso}')" class="w-full text-left"><span class="text-sm font-black ${selected?'text-blue-300':'text-white'}">${day}</span><span class="block text-[8px] mt-1 font-black uppercase ${openTimes.length?'text-emerald-300':'text-slate-500'}">${openTimes.length ? `${openTimes.length} TIME${openTimes.length===1?'':'S'} OPEN` : 'CLOSED'}</span><span class="block text-[7px] mt-1 text-slate-500">${openTimes.map(x=>x.label.replace(':00','')).join(' · ') || 'Click to configure'}</span></button>${appointmentHtml}${moreHtml}</div>`;
+        const moreHtml = dayAppointments.length > 4 ? `<span class="block text-[7px] mt-1 text-slate-600 font-black">+${dayAppointments.length - 4} MORE APPOINTMENT${dayAppointments.length - 4 === 1 ? '' : 'S'}</span>` : '';
+        const todayClass = iso === todayIso ? 'ring-2 ring-blue-300' : '';
+        html += `<div class="min-h-[128px] p-2 rounded-xl border text-left transition ${selected?'bg-blue-50 border-blue-500 shadow-sm':'bg-white border-slate-200'} ${todayClass} ${disabled?'opacity-45':'hover:border-blue-400 hover:shadow-sm'}"><button type="button" ${disabled?'disabled':''} onclick="editScheduleDate('${iso}')" class="w-full text-left"><span class="inline-flex items-center justify-center min-w-7 h-7 px-2 rounded-lg text-sm font-black ${selected?'bg-blue-600 text-white':'text-slate-900'}">${day}</span><span class="block text-[8px] mt-1 font-black uppercase ${openTimes.length?'text-emerald-700':'text-slate-500'}">${openTimes.length ? `${openTimes.length} TIME${openTimes.length===1?'':'S'} OPEN` : 'CLOSED'}</span><span class="block text-[7px] mt-1 text-slate-500">${openTimes.map(x=>x.label.replace(':00','')).join(' · ') || 'Click to configure'}</span></button>${appointmentHtml}${moreHtml}</div>`;
     }
     html += '</div>';
     host.innerHTML = html;
