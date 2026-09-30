@@ -22,18 +22,42 @@ service cloud.firestore {
     match /schedule_availability/{dateId} {
       allow read: if signedIn();
       allow create, delete: if isOfficer() || isStaff();
+      // Staff/Officer may configure the individual enabled times and admin counters.
       allow update: if isOfficer() || isStaff()
         || (signedIn()
             && request.resource.data.department == resource.data.department
             && request.resource.data.date == resource.data.date
             && request.resource.data.available == resource.data.available
-            && request.resource.data.amAvailable == resource.data.amAvailable
-            && request.resource.data.pmAvailable == resource.data.pmAvailable
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amBookedCount','pmBookedCount','updatedAt'])
-            && ((request.resource.data.amBookedCount == resource.data.amBookedCount + 1 && request.resource.data.pmBookedCount == resource.data.pmBookedCount)
-                || (request.resource.data.pmBookedCount == resource.data.pmBookedCount + 1 && request.resource.data.amBookedCount == resource.data.amBookedCount))
-            && request.resource.data.amBookedCount <= 5
-            && request.resource.data.pmBookedCount <= 5);
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt','booked_0800','booked_0900','booked_1000','booked_1100','booked_1300','booked_1400','booked_1500','booked_1600','booked_1700'])
+            && (
+              (resource.data.keys().hasAll(['booked_0800']) && request.resource.data.booked_0800 == resource.data.booked_0800 + 1) ||
+              (!resource.data.keys().hasAll(['booked_0800']) && request.resource.data.booked_0800 == 1) ||
+              (resource.data.keys().hasAll(['booked_0900']) && request.resource.data.booked_0900 == resource.data.booked_0900 + 1) ||
+              (!resource.data.keys().hasAll(['booked_0900']) && request.resource.data.booked_0900 == 1) ||
+              (resource.data.keys().hasAll(['booked_1000']) && request.resource.data.booked_1000 == resource.data.booked_1000 + 1) ||
+              (!resource.data.keys().hasAll(['booked_1000']) && request.resource.data.booked_1000 == 1) ||
+              (resource.data.keys().hasAll(['booked_1100']) && request.resource.data.booked_1100 == resource.data.booked_1100 + 1) ||
+              (!resource.data.keys().hasAll(['booked_1100']) && request.resource.data.booked_1100 == 1) ||
+              (resource.data.keys().hasAll(['booked_1300']) && request.resource.data.booked_1300 == resource.data.booked_1300 + 1) ||
+              (!resource.data.keys().hasAll(['booked_1300']) && request.resource.data.booked_1300 == 1) ||
+              (resource.data.keys().hasAll(['booked_1400']) && request.resource.data.booked_1400 == resource.data.booked_1400 + 1) ||
+              (!resource.data.keys().hasAll(['booked_1400']) && request.resource.data.booked_1400 == 1) ||
+              (resource.data.keys().hasAll(['booked_1500']) && request.resource.data.booked_1500 == resource.data.booked_1500 + 1) ||
+              (!resource.data.keys().hasAll(['booked_1500']) && request.resource.data.booked_1500 == 1) ||
+              (resource.data.keys().hasAll(['booked_1600']) && request.resource.data.booked_1600 == resource.data.booked_1600 + 1) ||
+              (!resource.data.keys().hasAll(['booked_1600']) && request.resource.data.booked_1600 == 1) ||
+              (resource.data.keys().hasAll(['booked_1700']) && request.resource.data.booked_1700 == resource.data.booked_1700 + 1) ||
+              (!resource.data.keys().hasAll(['booked_1700']) && request.resource.data.booked_1700 == 1)
+            )
+            && request.resource.data.booked_0800 <= 5
+            && request.resource.data.booked_0900 <= 5
+            && request.resource.data.booked_1000 <= 5
+            && request.resource.data.booked_1100 <= 5
+            && request.resource.data.booked_1300 <= 5
+            && request.resource.data.booked_1400 <= 5
+            && request.resource.data.booked_1500 <= 5
+            && request.resource.data.booked_1600 <= 5
+            && request.resource.data.booked_1700 <= 5);
     }
 
     match /lgu_requests/{requestId} {
