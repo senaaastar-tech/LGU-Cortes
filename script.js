@@ -20,7 +20,25 @@ const db = getFirestore(app);
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 const MAX_APPOINTMENTS_PER_PERIOD = 5;
-const MAX_APPOINTMENTS_PER_DATE = 10;
+const OFFICE_TIME_SLOTS = [
+    { value: '08:00', label: '8:00 AM', period: 'AM' },
+    { value: '09:00', label: '9:00 AM', period: 'AM' },
+    { value: '10:00', label: '10:00 AM', period: 'AM' },
+    { value: '11:00', label: '11:00 AM', period: 'AM' },
+    { value: '13:00', label: '1:00 PM', period: 'PM' },
+    { value: '14:00', label: '2:00 PM', period: 'PM' },
+    { value: '15:00', label: '3:00 PM', period: 'PM' },
+    { value: '16:00', label: '4:00 PM', period: 'PM' },
+    { value: '17:00', label: '5:00 PM', period: 'PM' }
+];
+function isMunicipalWorkingDay(isoDate) {
+    const d = new Date(`${isoDate}T00:00:00`);
+    const day = d.getDay();
+    return day >= 1 && day <= 5;
+}
+function getTimeSlotByValue(value) {
+    return OFFICE_TIME_SLOTS.find(x => x.value === value) || null;
+}
 let availabilityUnsubscribe = null;
 let userRequestsUnsubscribe = null;
 let adminAvailabilityUnsubscribe = null;
@@ -362,6 +380,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('requirementUpload')?.addEventListener('change', renderSelectedFiles);
 });
 
+const citizenTimeSelect = document.getElementById('citizenScheduleTime');
+if (citizenTimeSelect) {
+    citizenTimeSelect.addEventListener('change', () => {
+        const slot = getTimeSlotByValue(citizenTimeSelect.value);
+        const periodInput = document.getElementById('citizenSchedulePeriod');
+        if (periodInput) periodInput.value = slot?.period || '';
+    });
+}
+
 window.submitRequest = async () => {
     const name = document.getElementById('citizenFullName').value;
     const scheduleDate = document.getElementById('citizenScheduleDate')?.value || "";
@@ -372,7 +399,7 @@ window.submitRequest = async () => {
     const fileInput = document.getElementById('requirementUpload').files;
     const submitBtn = document.getElementById('submitRequestBtn');
 
-    if(!name || !contact || !service || !scheduleDate || !schedulePeriod) return alert("Please fill all citizen details, select an available date, and choose AM or PM.");
+    if(!name || !contact || !service || !scheduleDate || !scheduleTime || !schedulePeriod) return alert("Please fill all citizen details and select an available date and time.");
     if(service === '__OTHER__' && !otherPurpose) return alert("Please specify the purpose of your appointment.");
     if(service !== '__OTHER__' && fileInput.length === 0) return alert("Please upload at least one required document.");
 
@@ -380,6 +407,8 @@ window.submitRequest = async () => {
     const department = service === '__OTHER__' ? "General / Other Concern" : (selectedOption ? selectedOption.parentElement.label : "General");
     const serviceName = service === '__OTHER__' ? "Others / Other Appointment" : service;
     const availabilityId = makeAvailabilityId(scheduleDate, department);
+    if (!isMunicipalWorkingDay(scheduleDate)) throw new Error("Appointments are available Monday to Friday only.");
+    if (!selectedTimeSlot) throw new Error("Please choose a valid municipal hall appointment time.");
 
     try {
         submitBtn.disabled = true;
@@ -392,7 +421,7 @@ window.submitRequest = async () => {
         const periodAvailable = schedulePeriod === 'AM' ? availability.amAvailable === true : availability.pmAvailable === true;
         const booked = Number(schedulePeriod === 'AM' ? availability.amBookedCount : availability.pmBookedCount) || 0;
         if (!periodAvailable) throw new Error(`The ${schedulePeriod} schedule is closed for this office.`);
-        if (booked >= MAX_APPOINTMENTS_PER_PERIOD) throw new Error(`The ${schedulePeriod} schedule is already full (5/5). Please choose another date or period.`);
+        if (booked >= MAX_APPOINTMENTS_PER_PERIOD) throw new Error(`The selected time period is no longer available. Please choose another available schedule.`);
 
         let uploadedUrls = [];
         if (service !== '__OTHER__') {
@@ -434,6 +463,8 @@ window.submitRequest = async () => {
                 department,
                 scheduleDate,
                 schedulePeriod,
+                scheduleTime,
+                schedule: `${scheduleDate} · ${selectedTimeSlot.label}`,
                 scheduleStatus: "Requested",
                 documentUrls: uploadedUrls,
                 status: "Pending",
@@ -497,48 +528,60 @@ function renderUserScheduleCalendar() {
     const note = document.getElementById('scheduleAvailabilityNote');
     const dateInput = document.getElementById('citizenScheduleDate');
     const periodInput = document.getElementById('citizenSchedulePeriod');
+    const timeInput = document.getElementById('citizenScheduleTime');
     if (!host || !dateInput || !periodInput) return;
 
     const department = getSelectedDepartment();
-    const year = userCalendarMonth.getFullYear();
-    const month = userCalendarMonth.getMonth();
+    const year = userCalendarMonth.getFullYear(), month = userCalendarMonth.getMonth();
     const today = new Date();
     const todayIso = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0,10);
     const selectedDate = dateInput.value;
-    const selectedPeriod = periodInput.value;
-    const first = new Date(year, month, 1);
-    const last = new Date(year, month + 1, 0);
-    const start = first.getDay();
-    const total = last.getDate();
+    const selectedTime = timeInput?.value || '';
+    const first = new Date(year, month, 1), last = new Date(year, month + 1, 0);
+    const startDay = first.getDay(), total = last.getDate();
 
     if (!department) {
         host.innerHTML = '<div class="p-5 text-center text-xs font-bold text-slate-400">Select a service first to view this office’s available dates.</div>';
-        if(note) note.textContent = 'Select a service, then choose AM or PM and an available date.';
+        if(note) note.textContent = 'Municipal Hall: Monday–Friday, 8:00 AM–5:00 PM. Noon break: 12:00 PM–1:00 PM.';
+        if(timeInput) { timeInput.innerHTML = '<option value="">Select a date first...</option>'; timeInput.disabled = true; }
         return;
     }
 
     let html = `<div class="flex items-center justify-between mb-3"><button type="button" onclick="changeUserCalendarMonth(-1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 font-black">‹</button><div class="text-xs font-black text-slate-700 uppercase">${userCalendarMonth.toLocaleString('en-US',{month:'long',year:'numeric'})}</div><button type="button" onclick="changeUserCalendarMonth(1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 font-black">›</button></div>`;
-    html += `<div class="grid grid-cols-2 gap-2 mb-3"><button type="button" onclick="selectSchedulePeriod('AM')" class="p-2 rounded-xl border text-[10px] font-black ${selectedPeriod==='AM'?'bg-blue-600 text-white border-blue-600':'bg-blue-50 text-blue-700 border-blue-100'}">☀️ MORNING (AM) — 5 MAX</button><button type="button" onclick="selectSchedulePeriod('PM')" class="p-2 rounded-xl border text-[10px] font-black ${selectedPeriod==='PM'?'bg-indigo-600 text-white border-indigo-600':'bg-indigo-50 text-indigo-700 border-indigo-100'}">🌤️ AFTERNOON (PM) — 5 MAX</button></div>`;
+    html += '<p class="text-[9px] text-slate-500 font-bold mb-3">Municipal Hall: Monday–Friday, 8:00 AM–5:00 PM. Noon break: 12:00 PM–1:00 PM.</p>';
     html += '<div class="grid grid-cols-7 gap-1 text-[8px] font-black text-slate-400 uppercase mb-1">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-1">';
-    for(let i=0;i<start;i++) html += '<div></div>';
+    for(let i=0;i<startDay;i++) html += '<div></div>';
     for(let day=1; day<=total; day++) {
         const d = new Date(year, month, day);
         const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,10);
         const item = userAvailability[makeAvailabilityId(iso, department)] || {};
-        const isPast = iso < todayIso;
-        const amOpen = item.available === true && item.amAvailable === true && Number(item.amBookedCount||0) < 5;
-        const pmOpen = item.available === true && item.pmAvailable === true && Number(item.pmBookedCount||0) < 5;
-        const canPick = !isPast && !!selectedPeriod && (selectedPeriod === 'AM' ? amOpen : pmOpen);
+        const isPast = iso < todayIso, isWeekday = isMunicipalWorkingDay(iso);
+        const amOpen = item.available === true && item.amAvailable === true && Number(item.amBookedCount||0) < MAX_APPOINTMENTS_PER_PERIOD;
+        const pmOpen = item.available === true && item.pmAvailable === true && Number(item.pmBookedCount||0) < MAX_APPOINTMENTS_PER_PERIOD;
+        const canPick = !isPast && isWeekday && (amOpen || pmOpen);
         const selected = selectedDate === iso;
-        const amText = item.available === true && item.amAvailable === true ? `AM ${Number(item.amBookedCount||0)}/5` : 'AM OFF';
-        const pmText = item.available === true && item.pmAvailable === true ? `PM ${Number(item.pmBookedCount||0)}/5` : 'PM OFF';
-        html += `<button type="button" ${canPick?'':'disabled'} onclick="selectScheduleDate('${iso}')" class="min-h-[68px] p-1.5 rounded-xl border text-left transition ${selected?'bg-blue-600 border-blue-600 text-white':canPick?'bg-white border-slate-200 hover:border-blue-400':'bg-slate-100 border-slate-200 opacity-45 cursor-not-allowed'}"><span class="text-xs font-black">${day}</span><span class="block text-[7px] mt-1 font-black">${amText}</span><span class="block text-[7px] font-black">${pmText}</span></button>`;
+        const amText = item.available === true && item.amAvailable === true && Number(item.amBookedCount||0) < MAX_APPOINTMENTS_PER_PERIOD ? 'AM AVAILABLE' : 'AM UNAVAILABLE';
+        const pmText = item.available === true && item.pmAvailable === true && Number(item.pmBookedCount||0) < MAX_APPOINTMENTS_PER_PERIOD ? 'PM AVAILABLE' : 'PM UNAVAILABLE';
+        html += `<button type="button" ${canPick?'':'disabled'} onclick="selectScheduleDate('${iso}')" class="min-h-[68px] p-1.5 rounded-xl border text-left transition ${selected?'bg-blue-600 border-blue-600 text-white':canPick?'bg-white border-slate-200 hover:border-blue-400':'bg-slate-100 border-slate-200 opacity-45 cursor-not-allowed'}"><span class="text-xs font-black">${day}</span><span class="block text-[7px] mt-1 font-black">${isWeekday?amText:'WEEKEND'}</span><span class="block text-[7px] font-black">${isWeekday?pmText:'CLOSED'}</span></button>`;
     }
     html += '</div>';
     host.innerHTML = html;
-    if(note) note.textContent = selectedPeriod ? `Showing ${selectedPeriod} availability for ${department}. Each period has a maximum of 5 appointments.` : `Choose AM or PM to enable available dates for ${department}.`;
-}
 
+    if (timeInput) {
+        const item = selectedDate ? (userAvailability[makeAvailabilityId(selectedDate, department)] || {}) : {};
+        const options = OFFICE_TIME_SLOTS.filter(slot => {
+            if (!selectedDate || !isMunicipalWorkingDay(selectedDate)) return false;
+            return slot.period === 'AM'
+                ? item.available === true && item.amAvailable === true && Number(item.amBookedCount||0) < MAX_APPOINTMENTS_PER_PERIOD
+                : item.available === true && item.pmAvailable === true && Number(item.pmBookedCount||0) < MAX_APPOINTMENTS_PER_PERIOD;
+        });
+        timeInput.disabled = !selectedDate || options.length === 0;
+        timeInput.innerHTML = `<option value="">${selectedDate ? (options.length ? 'Select appointment time...' : 'No time available for this date') : 'Select a date first...'}</option>` +
+            options.map(x=>`<option value="${x.value}" ${selectedTime===x.value?'selected':''}>${x.label}</option>`).join('');
+        if (selectedTime && !options.some(x=>x.value===selectedTime)) timeInput.value = '';
+    }
+    if(note) note.textContent = selectedDate ? 'Choose an available time between 8:00 AM and 5:00 PM. 12:00 PM–1:00 PM is the noon break.' : 'Select an available weekday, then choose an appointment time.';
+}
 window.changeUserCalendarMonth = (delta) => {
     userCalendarMonth = new Date(userCalendarMonth.getFullYear(), userCalendarMonth.getMonth() + delta, 1);
     renderUserScheduleCalendar();
@@ -548,16 +591,19 @@ window.selectSchedulePeriod = (period) => {
     if (!input) return;
     input.value = period;
     document.getElementById('citizenScheduleDate').value = '';
+    if (document.getElementById('citizenScheduleTime')) document.getElementById('citizenScheduleTime').value = '';
     renderUserScheduleCalendar();
 };
 window.selectScheduleDate = (date) => {
-    const period = document.getElementById('citizenSchedulePeriod')?.value;
     const department = getSelectedDepartment();
     const item = userAvailability[makeAvailabilityId(date, department)];
-    if (!period || !item) return;
-    const open = period === 'AM' ? item.amAvailable === true && Number(item.amBookedCount||0) < 5 : item.pmAvailable === true && Number(item.pmBookedCount||0) < 5;
-    if (!open) return alert(`The ${period} schedule is unavailable or full.`);
+    if (!item || !isMunicipalWorkingDay(date)) return;
+    const amOpen = item.available === true && item.amAvailable === true && Number(item.amBookedCount||0) < MAX_APPOINTMENTS_PER_PERIOD;
+    const pmOpen = item.available === true && item.pmAvailable === true && Number(item.pmBookedCount||0) < MAX_APPOINTMENTS_PER_PERIOD;
+    if (!amOpen && !pmOpen) return;
     document.getElementById('citizenScheduleDate').value = date;
+    document.getElementById('citizenSchedulePeriod').value = '';
+    if (document.getElementById('citizenScheduleTime')) document.getElementById('citizenScheduleTime').value = '';
     renderUserScheduleCalendar();
 };
 window.validateScheduleDate = () => renderUserScheduleCalendar();
@@ -581,7 +627,7 @@ function renderAdminCalendar() {
         const isPast = iso < todayIso;
         const am = Number(item.amBookedCount||0), pm = Number(item.pmBookedCount||0);
         const amOpen = item.available === true && item.amAvailable === true, pmOpen = item.available === true && item.pmAvailable === true;
-        const disabled = isPast;
+        const disabled = isPast || !isMunicipalWorkingDay(iso);
         html += `<button type="button" ${disabled?'disabled':''} onclick="toggleScheduleDate('${iso}')" class="min-h-[86px] p-2 rounded-xl border text-left transition ${item.available===true?'bg-emerald-500/15 border-emerald-500/50':'bg-slate-800 border-slate-700'} ${disabled?'opacity-35 cursor-not-allowed':'hover:border-blue-500'}"><span class="text-sm font-black ${item.available===true?'text-emerald-300':'text-white'}">${day}</span><span class="block text-[8px] mt-1 font-black uppercase ${amOpen?'text-blue-300':'text-slate-500'}">AM ${am}/5 ${amOpen?'OPEN':'OFF'}</span><span class="block text-[8px] font-black uppercase ${pmOpen?'text-indigo-300':'text-slate-500'}">PM ${pm}/5 ${pmOpen?'OPEN':'OFF'}</span></button>`;
     }
     html += '</div>';
@@ -590,6 +636,7 @@ function renderAdminCalendar() {
 
 window.changeAdminCalendarMonth = (delta) => { adminCalendarMonth = new Date(adminCalendarMonth.getFullYear(), adminCalendarMonth.getMonth() + delta, 1); renderAdminCalendar(); };
 window.toggleScheduleDate = async (date) => {
+    if (!isMunicipalWorkingDay(date)) return alert('Municipal Hall appointments are available Monday to Friday only.');
     const department = document.getElementById('adminScheduleDept')?.value || '';
     if (!department) return alert('Select an office first.');
     try {
@@ -710,7 +757,7 @@ window.openApprovalModal = async (id, email) => {
          <div>OFFICE: <span class="text-white">${data.department || '—'}</span></div>
          <div>SERVICE: <span class="text-white">${data.service || '—'}</span></div>
          <div>DATE: <span class="text-white">${date}</span></div>
-         <div>PERIOD: <span class="text-white">${period}</span></div>`;
+         <div>TIME: <span class="text-white">${data.scheduleTime || period}</span></div>`;
     document.getElementById('rescheduleFields').classList.add('hidden');
     const btn = document.getElementById('sendEmailBtn');
     btn.innerText = 'APPROVE & EMAIL';
@@ -730,10 +777,11 @@ window.openRescheduleModal = async (id, email) => {
         `<div class="text-white">${data.fullName || 'Citizen'}</div>
          <div>OFFICE: <span class="text-white">${data.department || '—'}</span></div>
          <div>SERVICE: <span class="text-white">${data.service || '—'}</span></div>
-         <div>CURRENT: <span class="text-white">${data.scheduleDate || '—'} · ${data.schedulePeriod || '—'}</span></div>`;
+         <div>CURRENT: <span class="text-white">${data.scheduleDate || '—'} · ${data.scheduleTime || data.schedulePeriod || '—'}</span></div>`;
     document.getElementById('rescheduleFields').classList.remove('hidden');
     document.getElementById('schedDate').value = data.scheduleDate || '';
     document.getElementById('schedPeriod').value = data.schedulePeriod || 'AM';
+    if (document.getElementById('schedTime')) document.getElementById('schedTime').value = data.scheduleTime || (data.schedulePeriod === 'PM' ? '13:00' : '08:00');
     const btn = document.getElementById('sendEmailBtn');
     btn.innerText = 'RESCHEDULE & EMAIL';
     btn.dataset.mode = 'reschedule';
@@ -771,7 +819,7 @@ window.approveAppointment = async (id) => {
             transaction.update(requestRef, {
                 status: 'Approved',
                 scheduleStatus: 'Approved',
-                schedule: `${data.scheduleDate} · ${data.schedulePeriod === 'AM' ? 'Morning (AM)' : 'Afternoon (PM)'}`,
+                schedule: `${data.scheduleDate} · ${data.scheduleTime || (data.schedulePeriod === 'AM' ? 'Morning (AM)' : 'Afternoon (PM)')}`,
                 updatedAt: Date.now()
             });
         });
@@ -779,7 +827,7 @@ window.approveAppointment = async (id) => {
         await emailjs.send('service_yk1dfxf', 'template_agmhyzw', {
             to_email: data.email || currentCitizenEmail,
             appointment_date: data.scheduleDate,
-            appointment_time: data.schedulePeriod === 'AM' ? 'Morning (AM)' : 'Afternoon (PM)',
+            appointment_time: data.scheduleTime || (data.schedulePeriod === 'AM' ? 'Morning (AM)' : 'Afternoon (PM)'),
             message: `Your appointment with ${data.department || 'LGU Cortes'} has been approved.`
         });
         alert('Appointment approved and confirmation email sent.');
@@ -844,7 +892,10 @@ if(sendBtn) {
         if (mode === 'reschedule') {
             const date = document.getElementById('schedDate').value;
             const period = document.getElementById('schedPeriod').value;
-            if (!date || !period) return alert('Choose a new date and AM/PM period.');
+            const time = document.getElementById('schedTime')?.value || '';
+            const timeSlot = getTimeSlotByValue(time);
+            if (!date || !period || !timeSlot || timeSlot.period !== period) return alert('Choose a valid weekday and municipal hall time.');
+            if (!isMunicipalWorkingDay(date)) return alert('Municipal Hall appointments are available Monday to Friday only.');
             try {
                 const requestRef = doc(db, 'lgu_requests', currentDocId);
                 const requestSnap = await getDoc(requestRef);
@@ -853,7 +904,8 @@ if(sendBtn) {
                 const department = requestData.department || 'General / Other Concern';
                 const oldDate = requestData.scheduleDate;
                 const oldPeriod = requestData.schedulePeriod;
-                const sameSlot = oldDate === date && oldPeriod === period;
+                const oldTime = requestData.scheduleTime || '';
+                const sameSlot = oldDate === date && oldPeriod === period && oldTime === time;
                 const newRef = doc(db, 'schedule_availability', makeAvailabilityId(date, department));
 
                 await runTransaction(db, async (transaction) => {
@@ -874,7 +926,7 @@ if(sendBtn) {
                     }
 
                     if (!open) throw new Error(`The ${period} schedule is closed for this office.`);
-                    if (!sameSlot && newCount >= MAX_APPOINTMENTS_PER_PERIOD) throw new Error(`The ${period} schedule is already full (5/5).`);
+                    if (!sameSlot && newCount >= MAX_APPOINTMENTS_PER_PERIOD) throw new Error(`The selected time period is no longer available. Please choose another available schedule.`);
 
                     if (!sameSlot) {
                         transaction.update(newRef, { [newField]: newCount + 1, updatedAt: Date.now() });
@@ -887,7 +939,8 @@ if(sendBtn) {
                         scheduleStatus: 'Approved',
                         scheduleDate: date,
                         schedulePeriod: period,
-                        schedule: `${date} · ${period === 'AM' ? 'Morning (AM)' : 'Afternoon (PM)'}`,
+                        scheduleTime: time,
+                        schedule: `${date} · ${timeSlot.label}`, 
                         updatedAt: Date.now()
                     });
                 });
@@ -895,7 +948,7 @@ if(sendBtn) {
                 await emailjs.send('service_yk1dfxf', 'template_agmhyzw', {
                     to_email: requestData.email || currentCitizenEmail,
                     appointment_date: date,
-                    appointment_time: period === 'AM' ? 'Morning (AM)' : 'Afternoon (PM)',
+                    appointment_time: timeSlot.label,
                     message: `Your appointment schedule with ${department} has been updated.`
                 });
                 alert('Appointment rescheduled and updated confirmation email sent.');
