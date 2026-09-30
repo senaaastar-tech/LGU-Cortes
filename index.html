@@ -102,12 +102,15 @@
         }
         #citizenScheduleCalendar .user-calendar-cell .day-status {
           display: block !important;
-          margin-top: .3rem !important;
+          margin-top: .28rem !important;
           font-size: .47rem !important;
-          line-height: 1.05 !important;
-          white-space: nowrap !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
+          line-height: 1.15 !important;
+          white-space: normal !important;
+          overflow: visible !important;
+          text-overflow: clip !important;
+          overflow-wrap: anywhere !important;
+          word-break: normal !important;
+          max-height: 2.4em !important;
         }
 
         /* Admin calendar — enough room for appointments, but never expands the
