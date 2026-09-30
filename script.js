@@ -82,8 +82,11 @@ function isTimeOpen(item, time) {
     if (!item || !slot) return false;
     const hasNewFields = Object.prototype.hasOwnProperty.call(item, timeEnabledField(time));
     const enabled = hasNewFields ? item[timeEnabledField(time)] === true : (slot.period === 'AM' ? item.amAvailable === true : item.pmAvailable === true);
+    // Support both the current per-time availability records and older records
+    // that only stored amAvailable/pmAvailable without an `available` flag.
+    const baseAvailable = item.available === true || (item.available === undefined && (item.amAvailable === true || item.pmAvailable === true));
     const booked = Number(item[timeField(time)] || 0);
-    return item.available === true && enabled && booked < MAX_APPOINTMENTS_PER_TIME;
+    return baseAvailable && enabled && booked < MAX_APPOINTMENTS_PER_TIME;
 }
 function getTimeBooked(item, time) { return Number(item?.[timeField(time)] || 0); }
 function allTimeFields() { return OFFICE_TIME_SLOTS.flatMap(slot => [timeEnabledField(slot.value), timeField(slot.value)]); }
@@ -759,7 +762,7 @@ function renderAdminCalendar() {
     const first = new Date(year, month, 1), last = new Date(year, month + 1, 0), start = first.getDay(), total = last.getDate();
     const today = new Date(), todayIso = dateOnlyToIso(today.getFullYear(), today.getMonth(), today.getDate());
     const availability = window._adminAvailability || {};
-    let html = '<div class="grid grid-cols-7 gap-2 text-[9px] font-black text-slate-700 uppercase mb-2"> + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-2">';
+    let html = '<div class="grid grid-cols-7 gap-2 text-[9px] font-black text-slate-700 uppercase mb-2">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-2">';
     for(let i=0;i<start;i++) html += '<div></div>';
     for(let day=1; day<=total; day++) {
         const iso = dateOnlyToIso(year, month, day);
