@@ -903,11 +903,11 @@ window.openApprovalModal = async (id, email) => {
     document.getElementById('scheduleModalTitle').innerText = 'Approve Appointment';
     document.getElementById('targetEmail').innerText = `CONFIRMATION EMAIL: ${email || 'NO EMAIL'}`;
     document.getElementById('approvalSummary').innerHTML =
-        `<div class="text-white">${data.fullName || 'Citizen'}</div>
-         <div>OFFICE: <span class="text-white">${data.department || '—'}</span></div>
-         <div>SERVICE: <span class="text-white">${data.service || '—'}</span></div>
-         <div>DATE: <span class="text-white">${date}</span></div>
-         <div>TIME: <span class="text-white">${format24HourTime(data.scheduleTime)}</span></div>`;
+        `<div class="text-slate-900">${data.fullName || 'Citizen'}</div>
+         <div>OFFICE: <span class="text-slate-900">${data.department || '—'}</span></div>
+         <div>SERVICE: <span class="text-slate-900">${data.service || '—'}</span></div>
+         <div>DATE: <span class="text-slate-900">${date}</span></div>
+         <div>TIME: <span class="text-slate-900">${formatCalendarTime(data.scheduleTime)}</span></div>`;
     document.getElementById('rescheduleFields').classList.add('hidden');
     const btn = document.getElementById('sendEmailBtn');
     btn.innerText = 'APPROVE & EMAIL';
@@ -943,10 +943,10 @@ window.openRescheduleModal = async (id, email) => {
     document.getElementById('scheduleModalTitle').innerText = 'Reschedule Appointment';
     document.getElementById('targetEmail').innerText = `UPDATED SCHEDULE EMAIL: ${email || 'NO EMAIL'}`;
     document.getElementById('approvalSummary').innerHTML =
-        `<div class="text-white">${data.fullName || 'Citizen'}</div>
-         <div>OFFICE: <span class="text-white">${data.department || '—'}</span></div>
-         <div>SERVICE: <span class="text-white">${data.service || '—'}</span></div>
-         <div>CURRENT: <span class="text-white">${data.scheduleDate || '—'} · ${format24HourTime(data.scheduleTime)}</span></div>`;
+        `<div class="text-slate-900">${data.fullName || 'Citizen'}</div>
+         <div>OFFICE: <span class="text-slate-900">${data.department || '—'}</span></div>
+         <div>SERVICE: <span class="text-slate-900">${data.service || '—'}</span></div>
+         <div>CURRENT: <span class="text-slate-900">${data.scheduleDate || '—'} · ${formatCalendarTime(data.scheduleTime)}</span></div>`;
     window._rescheduleDepartment = data.department || '';
     document.getElementById('rescheduleFields').classList.remove('hidden');
     document.getElementById('schedDate').value = data.scheduleDate || '';
@@ -1190,7 +1190,7 @@ window.loadOfficerData = () => {
                             <p class="text-[9px] font-black text-blue-500 uppercase mb-1">${data.department || 'General'}</p>
                             <h4 class="text-lg font-black text-white leading-tight uppercase">${data.fullName || 'Unnamed Citizen'}</h4>
                             <div class="space-y-1 mt-3">
-                                <p class="text-[10px] text-slate-400 uppercase font-bold">Service: <span class="text-white">${data.service || '—'}</span></p>
+                                <p class="text-[10px] text-slate-400 uppercase font-bold">Service: <span class="text-slate-900">${data.service || '—'}</span></p>
                                 ${data.purpose ? `<p class="text-[10px] text-slate-400 uppercase font-bold">Purpose: <span class="text-white">${data.purpose}</span></p>` : ''}
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Username / Email: <span class="text-white">${data.email || '—'}</span></p>
                                 <p class="text-[10px] text-slate-400 uppercase font-bold">Status: <span class="${statusClass}">${data.status || 'Pending'}</span></p>
