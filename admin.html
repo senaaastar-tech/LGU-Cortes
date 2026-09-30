@@ -21,6 +21,89 @@
             z-index:0;
         }
         body > * { position:relative; z-index:1; }
+        /* Mobile-safe calendar layout: seven equal columns, no horizontal
+           overflow, and no row expansion from long appointment text. */
+        #adminCalendar {
+            width:100%;
+            max-width:100%;
+            min-width:0;
+            box-sizing:border-box;
+            overflow:hidden;
+        }
+        #adminCalendar .admin-calendar-grid,
+        #adminCalendar .admin-calendar-weekdays {
+            width:100%;
+            max-width:100%;
+            min-width:0;
+            grid-template-columns:repeat(7,minmax(0,1fr)) !important;
+        }
+        #adminCalendar .admin-calendar-cell,
+        #adminCalendar .admin-calendar-cell * {
+            min-width:0;
+            max-width:100%;
+            box-sizing:border-box;
+        }
+        @media (max-width:640px) {
+            body { padding: .75rem !important; }
+            #adminCalendar { padding:.5rem !important; }
+            #adminCalendar .admin-calendar-grid,
+            #adminCalendar .admin-calendar-weekdays {
+                gap:.2rem !important;
+            }
+            #adminCalendar .admin-calendar-weekdays {
+                font-size:.5rem !important;
+                line-height:1 !important;
+            }
+            #adminCalendar .admin-calendar-cell {
+                width:100% !important;
+                height:82px !important;
+                min-height:82px !important;
+                max-height:82px !important;
+                padding:.28rem !important;
+                border-radius:.65rem !important;
+                overflow:hidden !important;
+            }
+            #adminCalendar .admin-calendar-cell .day-number {
+                min-width:1.3rem !important;
+                height:1.3rem !important;
+                font-size:.66rem !important;
+                padding:0 .18rem !important;
+            }
+            #adminCalendar .admin-calendar-cell .day-status {
+                font-size:.44rem !important;
+                line-height:1.05 !important;
+                white-space:nowrap !important;
+                overflow:hidden !important;
+                text-overflow:ellipsis !important;
+            }
+            #adminCalendar .admin-calendar-cell .day-times {
+                font-size:.4rem !important;
+                line-height:1.05 !important;
+                white-space:nowrap !important;
+                overflow:hidden !important;
+                text-overflow:ellipsis !important;
+            }
+            #adminCalendar .admin-calendar-appointment {
+                min-width:0 !important;
+                width:100% !important;
+                max-width:100% !important;
+                padding:.18rem !important;
+                margin-top:.15rem !important;
+                overflow:hidden !important;
+            }
+            #adminCalendar .admin-calendar-appointment .appt-time,
+            #adminCalendar .admin-calendar-appointment .appt-name,
+            #adminCalendar .admin-calendar-appointment .appt-status {
+                min-width:0 !important;
+                max-width:100% !important;
+                overflow:hidden !important;
+                text-overflow:ellipsis !important;
+                white-space:nowrap !important;
+            }
+            #adminCalendar .admin-calendar-appointment .appt-time { font-size:.38rem !important; }
+            #adminCalendar .admin-calendar-appointment .appt-name { font-size:.42rem !important; line-height:1.05 !important; }
+            #adminCalendar .admin-calendar-appointment .appt-status { font-size:.36rem !important; }
+        }
     </style>
 </head>
 <body class="bg-slate-950 p-6 text-slate-100 font-sans">
