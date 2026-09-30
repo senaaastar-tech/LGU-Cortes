@@ -620,8 +620,17 @@ function formatCalendarTime(time) {
 function escapeCalendarText(value) {
     return String(value ?? '').replace(/[&<>\'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
 }
+function normalizeCalendarDepartment(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
 function getAdminCalendarRequestsForDate(date, department) {
-    return (window._adminCalendarRequests || []).filter(x => x.scheduleDate === date && x.department === department && (x.status || 'Pending') !== 'Cancelled').sort((a,b) => String(a.scheduleTime||'').localeCompare(String(b.scheduleTime||'')));
+    const target = normalizeCalendarDepartment(department);
+    return (window._adminCalendarRequests || []).filter(x => {
+        if (x.scheduleDate !== date || (x.status || 'Pending') === 'Cancelled') return false;
+        const stored = normalizeCalendarDepartment(x.department);
+        // Match the office robustly even when capitalization/extra spaces differ.
+        return stored === target;
+    }).sort((a,b) => String(a.scheduleTime||'').localeCompare(String(b.scheduleTime||'')));
 }
 window.openCalendarAppointment = (id) => {
     const item = (window._adminCalendarRequests || []).find(x => x.id === id); if (!item) return;
@@ -655,7 +664,7 @@ function renderAdminCalendar() {
             const time = escapeCalendarText(formatCalendarTime(appt.scheduleTime));
             const status = appt.status || 'Pending';
             const statusClass = status === 'Approved' ? 'text-emerald-300' : status === 'Rejected' ? 'text-red-300' : 'text-amber-300';
-            return `<button type="button" onclick="event.stopPropagation();openCalendarAppointment('${appt.id}')" class="w-full text-left mt-1 px-1.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-700 border border-slate-700/70 transition"><span class="block text-[8px] font-black text-blue-300 truncate">${time}</span><span class="block text-[8px] font-black text-white truncate">${name}</span><span class="block text-[7px] font-black uppercase ${statusClass}">${escapeCalendarText(status)}</span></button>`;
+            return `<button type="button" onclick="event.stopPropagation();openCalendarAppointment('${appt.id}')" class="w-full text-left mt-1 px-1.5 py-1.5 rounded-lg bg-blue-950/80 hover:bg-slate-700 border border-blue-700/70 transition"><span class="block text-[8px] font-black text-blue-300 truncate">${time}</span><span class="block text-[9px] font-black text-white leading-tight">${name}</span><span class="block text-[7px] font-black uppercase ${statusClass}">${escapeCalendarText(status)}</span></button>`;
         }).join('');
         const moreHtml = dayAppointments.length > 4 ? `<span class="block text-[7px] mt-1 text-slate-400 font-black">+${dayAppointments.length - 4} MORE APPOINTMENT${dayAppointments.length - 4 === 1 ? '' : 'S'}</span>` : '';
         html += `<button type="button" ${disabled?'disabled':''} onclick="editScheduleDate('${iso}')" class="min-h-[128px] p-2 rounded-xl border text-left transition ${selected?'bg-blue-600/20 border-blue-500':'bg-slate-800 border-slate-700'} ${disabled?'opacity-35 cursor-not-allowed':'hover:border-blue-500'}"><span class="text-sm font-black ${selected?'text-blue-300':'text-white'}">${day}</span><span class="block text-[8px] mt-1 font-black uppercase ${openTimes.length?'text-emerald-300':'text-slate-500'}">${openTimes.length ? `${openTimes.length} TIME${openTimes.length===1?'':'S'} OPEN` : 'CLOSED'}</span><span class="block text-[7px] mt-1 text-slate-500">${openTimes.map(x=>x.label.replace(':00','')).join(' · ') || 'Click to configure'}</span>${appointmentHtml}${moreHtml}</button>`;
@@ -726,8 +735,21 @@ window.startAdminCalendar = () => {
     });
     adminRequestsUnsubscribe = onSnapshot(collection(db, 'lgu_requests'), (snap) => {
         const counts = {}, requests = [];
-        snap.forEach(d => { const x={id:d.id,...d.data()}; if(x.scheduleDate && x.department && x.scheduleTime && (x.status||'Pending')!=='Cancelled'){ const k=`${x.scheduleDate}__${x.department}__${x.scheduleTime}`; counts[k]=(counts[k]||0)+1; requests.push(x); } });
-        adminBookingCounts = counts; window._adminCalendarRequests = requests; renderAdminCalendar();
+        snap.forEach(d => {
+            const x = {id:d.id, ...d.data()};
+            if (x.scheduleDate && x.department && x.scheduleTime && (x.status || 'Pending') !== 'Cancelled') {
+                const k = `${x.scheduleDate}__${normalizeCalendarDepartment(x.department)}__${x.scheduleTime}`;
+                counts[k] = (counts[k] || 0) + 1;
+                requests.push(x);
+            }
+        });
+        adminBookingCounts = counts;
+        window._adminCalendarRequests = requests;
+        renderAdminCalendar();
+    }, (error) => {
+        console.error('Admin calendar appointment listener:', error);
+        window._adminCalendarRequests = [];
+        renderAdminCalendar();
     });
     renderAdminCalendar();
 };
