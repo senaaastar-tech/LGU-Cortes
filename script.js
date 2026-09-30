@@ -1,5 +1,18 @@
+
+function formatTime12Hour(time) {
+  if (!time) return "";
+  const m = String(time).match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return String(time);
+  let hour = Number(m[1]);
+  const minute = m[2];
+  const suffix = hour >= 12 ? "PM" : "AM";
+  hour = hour % 12;
+  if (hour === 0) hour = 12;
+  return `${hour}:${minute} ${suffix}`;
+}
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, query, where, deleteDoc, getDoc, getDocs, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -155,6 +168,17 @@ const serviceRequirements = {
     "On-line Processing of Barangay Official’s Death and Burial Assistance Claim": "Death Certificate, Barangay Certification of active service, Burial contract/receipts."
 };
 
+function isOtherService(service) {
+    return typeof service === 'string' && service.startsWith('__OTHER__::');
+}
+
+function getServiceDepartment(service) {
+    const selectedOption = document.querySelector(`#serviceType option[value=\"${CSS.escape(service || '')}\"]`);
+    if (selectedOption?.parentElement?.label) return selectedOption.parentElement.label;
+    if (isOtherService(service)) return service.substring('__OTHER__::'.length) || 'General';
+    return 'General';
+}
+
 window.displayRequirements = () => {
     renderUserScheduleCalendar();
     const selectedService = document.getElementById('serviceType').value;
@@ -165,9 +189,9 @@ window.displayRequirements = () => {
     const uploadBox = document.getElementById('uploadRequirementsBox');
     const uploadLabel = document.getElementById('uploadRequirementsLabel');
 
-    if (selectedService === '__OTHER__') {
+    if (isOtherService(selectedService)) {
         uploadBox?.classList.add('hidden');
-        if (uploadLabel) uploadLabel.innerText = 'No document upload required for Other / General Appointment';
+        if (uploadLabel) uploadLabel.innerText = 'No document upload required for Other / Other Purpose';
         otherPurposeBox?.classList.remove('hidden');
         otherPurpose?.setAttribute('required', 'required');
         reqBox?.classList.add('hidden');
@@ -324,6 +348,24 @@ window.togglePasswordVisibility = () => {
     passInput.type = toggle.checked ? "text" : "password";
 };
 
+window.forgotPassword = async () => {
+    const emailInput = document.getElementById("authEmail");
+    const enteredEmail = (emailInput?.value || "").trim();
+    const email = enteredEmail || window.prompt("Enter your registered email address:");
+    if (!email) return;
+    if (!/^\S+@\S+\.\S+$/.test(email)) return alert("Please enter a valid email address.");
+    try {
+        await sendPasswordResetEmail(auth, email);
+        alert("Password reset email sent. Please check your email and follow the instructions to create a new password.");
+    } catch (e) {
+        const code = e?.code || "";
+        if (code === "auth/invalid-email") return alert("Please enter a valid email address.");
+        if (code === "auth/too-many-requests") return alert("Too many reset attempts. Please try again later.");
+        // Keep the message generic so the login screen does not reveal whether an account exists.
+        alert("If an account is registered with that email, a password reset message has been sent. Please check your inbox and spam folder.");
+    }
+};
+
 window.handleAuth = async () => {
     const email = document.getElementById('authEmail').value;
     const pass = document.getElementById('authPass').value;
@@ -438,12 +480,12 @@ window.submitRequest = async () => {
     const selectedTimeSlot = getTimeSlotByValue(scheduleTime);
 
     if(!name || !contact || !service || !scheduleDate || !scheduleTime || !schedulePeriod) return alert("Please fill all citizen details and select an available date and time.");
-    if(service === '__OTHER__' && !otherPurpose) return alert("Please specify the purpose of your appointment.");
-    if(service !== '__OTHER__' && fileInput.length === 0) return alert("Please upload at least one required document.");
+    if(isOtherService(service) && !otherPurpose) return alert("Please specify the purpose of your appointment.");
+    if(!isOtherService(service) && fileInput.length === 0) return alert("Please upload at least one required document.");
 
     const selectedOption = document.querySelector(`#serviceType option[value="${CSS.escape(service)}"]`);
-    const department = service === '__OTHER__' ? "General / Other Concern" : (selectedOption ? selectedOption.parentElement.label : "General");
-    const serviceName = service === '__OTHER__' ? "Others / Other Appointment" : service;
+    const department = getServiceDepartment(service);
+    const serviceName = isOtherService(service) ? "Other / Other Purpose" : service;
     const availabilityId = makeAvailabilityId(scheduleDate, department);
     if (!isMunicipalWorkingDay(scheduleDate)) return alert("Appointments are available Monday to Friday only.");
     if (!selectedTimeSlot) return alert("Please choose a valid municipal hall appointment time.");
@@ -460,7 +502,7 @@ window.submitRequest = async () => {
         if (!isTimeOpen(availability, scheduleTime)) throw new Error("That appointment time is no longer available. Please choose another available time.");
 
         let uploadedUrls = [];
-        if (service !== '__OTHER__') {
+        if (!isOtherService(service)) {
             submitBtn.innerText = "UPLOADING DOCUMENTS...";
             for (let i = 0; i < fileInput.length; i++) {
                 const formData = new FormData();
@@ -492,7 +534,7 @@ window.submitRequest = async () => {
                 fullName: name,
                 contact: contact,
                 service: serviceName,
-                purpose: service === '__OTHER__' ? otherPurpose : "",
+                purpose: isOtherService(service) ? otherPurpose : "",
                 department,
                 scheduleDate,
                 schedulePeriod,
@@ -505,7 +547,7 @@ window.submitRequest = async () => {
             });
         });
 
-        alert(service === '__OTHER__' ? "Appointment Submitted Successfully!" : "Appointment and Documents Submitted Successfully!");
+        alert(isOtherService(service) ? "Appointment Submitted Successfully!" : "Appointment and Documents Submitted Successfully!");
         document.getElementById('citizenFullName').value = "";
         document.getElementById('citizenScheduleDate').value = "";
         document.getElementById('citizenSchedulePeriod').value = "";
@@ -535,7 +577,7 @@ function getSelectedDepartment() {
     const service = document.getElementById('serviceType')?.value || '';
     if (!service) return '';
     const selectedOption = document.querySelector(`#serviceType option[value="${CSS.escape(service)}"]`);
-    return service === '__OTHER__' ? 'General / Other Concern' : (selectedOption?.parentElement?.label || 'General / Other Concern');
+    return getServiceDepartment(service);
 }
 
 function startAvailabilityListener() {
@@ -620,6 +662,14 @@ window.selectScheduleDate = (date) => {
 };
 window.validateScheduleDate = () => renderUserScheduleCalendar();
 
+function format24HourTime(time) {
+    if (!time) return 'TIME TBA';
+    const parts = String(time).split(':');
+    const h = Number(parts[0]);
+    const m = parts[1] || '00';
+    if (!Number.isFinite(h)) return String(time);
+    return `${String(h).padStart(2,'0')}:${m}`;
+}
 function formatCalendarTime(time) {
     if (!time) return 'TIME TBA';
     const parts = String(time).split(':'); let h = Number(parts[0]); const m = parts[1] || '00';
@@ -857,7 +907,7 @@ window.openApprovalModal = async (id, email) => {
          <div>OFFICE: <span class="text-white">${data.department || '—'}</span></div>
          <div>SERVICE: <span class="text-white">${data.service || '—'}</span></div>
          <div>DATE: <span class="text-white">${date}</span></div>
-         <div>TIME: <span class="text-white">${data.scheduleTime || period}</span></div>`;
+         <div>TIME: <span class="text-white">${format24HourTime(data.scheduleTime)}</span></div>`;
     document.getElementById('rescheduleFields').classList.add('hidden');
     const btn = document.getElementById('sendEmailBtn');
     btn.innerText = 'APPROVE & EMAIL';
@@ -896,7 +946,7 @@ window.openRescheduleModal = async (id, email) => {
         `<div class="text-white">${data.fullName || 'Citizen'}</div>
          <div>OFFICE: <span class="text-white">${data.department || '—'}</span></div>
          <div>SERVICE: <span class="text-white">${data.service || '—'}</span></div>
-         <div>CURRENT: <span class="text-white">${data.scheduleDate || '—'} · ${data.scheduleTime || data.schedulePeriod || '—'}</span></div>`;
+         <div>CURRENT: <span class="text-white">${data.scheduleDate || '—'} · ${format24HourTime(data.scheduleTime)}</span></div>`;
     window._rescheduleDepartment = data.department || '';
     document.getElementById('rescheduleFields').classList.remove('hidden');
     document.getElementById('schedDate').value = data.scheduleDate || '';

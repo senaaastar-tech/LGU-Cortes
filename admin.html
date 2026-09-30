@@ -94,7 +94,6 @@
                     <option value="Local Civil Registry Office">Local Civil Registry Office</option>
                     <option value="Municipal Agricultural Officer">Municipal Agricultural Officer</option>
                     <option value="Department of Interior and Local Government (DILG)">Department of Interior and Local Government (DILG)</option>
-                    <option value="General / Other Concern">General / Other Concern</option>
                 </select>
             </div>
             <div id="adminCalendar"></div>
@@ -108,31 +107,31 @@
     </div>
 
     <div id="emailModal" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center p-6 z-50 backdrop-blur-sm">
-<div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 max-w-sm w-full shadow-2xl">
-<h3 id="scheduleModalTitle" class="text-xl font-black mb-2 text-blue-400 uppercase tracking-tight">Approve Appointment</h3>
-<p id="targetEmail" class="text-[10px] text-slate-500 mb-4 font-mono break-all bg-slate-800 p-2 rounded"></p>
-<div id="approvalSummary" class="bg-slate-800/70 p-4 rounded-2xl border border-slate-700 mb-4 text-[10px] text-slate-300 font-bold leading-5"></div>
+<div class="bg-white text-slate-900 p-8 rounded-3xl border border-slate-200 max-w-sm w-full shadow-2xl">
+<h3 id="scheduleModalTitle" class="text-xl font-black mb-2 text-blue-700 uppercase tracking-tight">Approve Appointment</h3>
+<p id="targetEmail" class="text-[10px] text-slate-500 mb-4 font-mono break-all bg-slate-100 border border-slate-200 p-2 rounded"></p>
+<div id="approvalSummary" class="bg-white p-4 rounded-2xl border border-slate-200 mb-4 text-[10px] text-slate-700 font-bold leading-5 shadow-sm"></div>
 <div id="rescheduleFields" class="hidden space-y-4">
 <div>
-<label class="text-[10px] font-black text-slate-400 uppercase ml-1">New Visit Date</label>
-<input id="schedDate" type="date" class="w-full p-3 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500">
+<label class="text-[10px] font-black text-slate-600 uppercase ml-1">New Visit Date</label>
+<input id="schedDate" type="date" class="w-full p-3 rounded-xl bg-white border border-slate-200 text-slate-900 focus:ring-2 focus:ring-blue-500">
 </div>
 <div>
-<label class="text-[10px] font-black text-slate-400 uppercase ml-1">New Period</label>
-<select id="schedPeriod" class="w-full p-3 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500">
+<label class="text-[10px] font-black text-slate-600 uppercase ml-1">New Period</label>
+<select id="schedPeriod" class="w-full p-3 rounded-xl bg-white border border-slate-200 text-slate-900 focus:ring-2 focus:ring-blue-500">
 <option value="AM">Morning (AM)</option><option value="PM">Afternoon (PM)</option>
 </select>
 </div>
 <div>
-<label class="text-[10px] font-black text-slate-400 uppercase ml-1">New Appointment Time</label>
-<select id="schedTime" class="w-full p-3 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500">
+<label class="text-[10px] font-black text-slate-600 uppercase ml-1">New Appointment Time</label>
+<select id="schedTime" class="w-full p-3 rounded-xl bg-white border border-slate-200 text-slate-900 focus:ring-2 focus:ring-blue-500">
 <option value="08:00">8:00 AM</option><option value="09:00">9:00 AM</option><option value="10:00">10:00 AM</option><option value="11:00">11:00 AM</option>
 <option value="13:00">1:00 PM</option><option value="14:00">2:00 PM</option><option value="15:00">3:00 PM</option><option value="16:00">4:00 PM</option><option value="17:00">5:00 PM</option>
 </select>
 </div>
 </div>
 <div class="flex gap-3 mt-8">
-<button onclick="closeModal()" class="flex-1 bg-slate-800 p-3 rounded-xl font-black text-xs hover:bg-slate-700 transition">CANCEL</button>
+<button onclick="closeModal()" class="flex-1 bg-slate-100 text-slate-700 p-3 rounded-xl font-black text-xs hover:bg-slate-200 transition">CANCEL</button>
 <button id="sendEmailBtn" class="flex-1 bg-blue-600 p-3 rounded-xl font-black text-xs hover:bg-blue-500 transition shadow-lg">APPROVE & EMAIL</button>
 </div>
 </div></div>

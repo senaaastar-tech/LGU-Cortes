@@ -34,3 +34,7 @@ The approval email uses the EmailJS service/template already configured in `scri
 
 ## 6. Cloudinary
 The citizen upload uses the existing unsigned upload preset. Restrict the preset in Cloudinary as much as possible (allowed formats, file size, folder, and moderation) because browser uploads cannot keep an unsigned preset secret.
+
+
+## User Forgot Password
+The citizen login now includes a **Forgot Password?** link. It uses Firebase Authentication password-reset email (`sendPasswordResetEmail`) and requires the Firebase Authentication Email/Password provider to be enabled.

@@ -109,6 +109,9 @@
                         <input type="checkbox" id="showPassToggle" onclick="togglePasswordVisibility()" class="w-3.5 h-3.5 rounded border-slate-300 text-blue-700 focus:ring-blue-500 cursor-pointer">
                         <label for="showPassToggle" class="text-[10px] font-black text-slate-500 uppercase cursor-pointer select-none">Show Password</label>
                     </div>
+                    <div class="flex justify-end mt-1">
+                        <button type="button" onclick="forgotPassword()" class="text-[10px] font-black text-blue-700 hover:text-blue-900 hover:underline uppercase tracking-wide">Forgot Password?</button>
+                    </div>
                 </div>
 
                 <button id="mainAuthBtn" onclick="handleAuth()" class="w-full bg-blue-700 text-white p-3 rounded-xl font-black hover:bg-blue-800 transition shadow-lg">LOGIN</button>
@@ -156,15 +159,15 @@
                     <label class="text-[10px] font-black text-slate-500 uppercase ml-1">Required Service</label>
                     <select id="serviceType" onchange="displayRequirements()" class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm">
                         <option value="" disabled selected>Select service...</option>
-                        <option value="__OTHER__">Others / Other Appointment</option>
-                        
                         <optgroup label="Municipal Planning and Development Office">
                             <option value="Issuance of Location / Zoning Clearance">Issuance of Location / Zoning Clearance</option>
                             <option value="Issuance of Zoning Certification">Issuance of Zoning Certification</option>
+                            <option value="__OTHER__::Municipal Planning and Development Office">Other / Other Purpose</option>
                         </optgroup>
 
                         <optgroup label="Business Permit and Licensing Office">
                             <option value="Issuance of Business Permit (New and Renewal)">Issuance of Business Permit (New and Renewal)</option>
+                            <option value="__OTHER__::Business Permit and Licensing Office">Other / Other Purpose</option>
                         </optgroup>
 
                         <optgroup label="Office of the Municipal Treasurer">
@@ -173,16 +176,19 @@
                             <option value="Issuance of Official Receipts on Real Property Taxes">Issuance of Official Receipts on Real Property Taxes</option>
                             <option value="Issuance of Certification as to Tax Payments or Tax Clearance">Issuance of Certification as to Tax Payments or Tax Clearance</option>
                             <option value="Issuance of Official Receipt for Water Bill Payment">Issuance of Official Receipt for Water Bill Payment</option>
+                            <option value="__OTHER__::Office of the Municipal Treasurer">Other / Other Purpose</option>
                         </optgroup>
 
                         <optgroup label="Local Chief Executive's Office">
                             <option value="Issuance of Mayor's Certification / Clearance">Issuance of Mayor's Certification / Clearance</option>
+                            <option value="__OTHER__::Local Chief Executive's Office">Other / Other Purpose</option>
                         </optgroup>
 
                         <optgroup label="Human Resource Management Office">
                             <option value="Issuance of Service Record">Issuance of Service Record</option>
                             <option value="Issuance of Certificate of Employment">Issuance of Certificate of Employment</option>
                             <option value="Issuance of Leave Credits">Issuance of Leave Credits</option>
+                            <option value="__OTHER__::Human Resource Management Office">Other / Other Purpose</option>
                         </optgroup>
 
                         <optgroup label="Municipal Social Welfare and Development Office">
@@ -192,11 +198,13 @@
                             <option value="Program for Differently Abled Persons / PWD">Program for Differently Abled Persons / PWD</option>
                             <option value="Monitoring of Day Care Center and Programs">Monitoring of Day Care Center and Programs</option>
                             <option value="Anti-Violence Against Women & Their Children Act">Anti-Violence Against Women & Their Children Act</option>
+                            <option value="__OTHER__::Municipal Social Welfare and Development Office">Other / Other Purpose</option>
                         </optgroup>
 
                         <optgroup label="Municipal Budget Officer">
                             <option value="Certification on Obligation Requests">Certification on Obligation Requests</option>
                             <option value="Preliminary Review of Barangay Budgets">Preliminary Review of Barangay Budgets</option>
+                            <option value="__OTHER__::Municipal Budget Officer">Other / Other Purpose</option>
                         </optgroup>
 
                         <optgroup label="Local Civil Registry Office">
@@ -206,6 +214,7 @@
                             <option value="Legitimation and Endorsement to PSA">Legitimation and Endorsement to PSA</option>
                             <option value="Registration of Certificate of Live Birth under RA 9255">Registration of Certificate of Live Birth under RA 9255</option>
                             <option value="Petitions under RA 9048 / RA 10172">Petitions under RA 9048 / RA 10172</option>
+                            <option value="__OTHER__::Local Civil Registry Office">Other / Other Purpose</option>
                         </optgroup>
 
                         <optgroup label="Municipal Agricultural Officer">
@@ -213,12 +222,14 @@
                             <option value="Registration / Accreditation of PO’s to DOLE">Registration / Accreditation of PO’s to DOLE</option>
                             <option value="Processing Fishing Permit">Processing Fishing Permit</option>
                             <option value="Releasing / Distribution of Agricultural Farm Interventions">Releasing / Distribution of Agricultural Farm Interventions</option>
+                            <option value="__OTHER__::Municipal Agricultural Officer">Other / Other Purpose</option>
                         </optgroup>
 
                         <optgroup label="Department of Interior and Local Government (DILG)">
                             <option value="Issuance of Certificate of Incumbency for Local Officials">Issuance of Certificate of Incumbency for Local Officials</option>
                             <option value="Issuance of Certificate for Services Rendered">Issuance of Certificate for Services Rendered</option>
                             <option value="On-line Processing of Barangay Official’s Death and Burial Assistance Claim">On-line Processing of Barangay Official’s Death and Burial Assistance Claim</option>
+                            <option value="__OTHER__::Department of Interior and Local Government (DILG)">Other / Other Purpose</option>
                         </optgroup>
                     </select>
                 </div>
