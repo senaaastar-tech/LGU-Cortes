@@ -70,6 +70,7 @@ let adminAvailabilityUnsubscribe = null;
 let adminRequestsUnsubscribe = null;
 let adminCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let adminBookingCounts = {};
+let adminCalendarRequests = [];
 let userCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let userAvailability = {};
 
@@ -610,6 +611,25 @@ window.selectScheduleDate = (date) => {
 };
 window.validateScheduleDate = () => renderUserScheduleCalendar();
 
+function formatCalendarTime(time) {
+    if (!time) return 'TIME TBA';
+    const parts = String(time).split(':'); let h = Number(parts[0]); const m = parts[1] || '00';
+    if (!Number.isFinite(h)) return String(time); const suffix = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+    return `${h}:${m} ${suffix}`;
+}
+function escapeCalendarText(value) {
+    return String(value ?? '').replace(/[&<>\'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+}
+function getAdminCalendarRequestsForDate(date, department) {
+    return (window._adminCalendarRequests || []).filter(x => x.scheduleDate === date && x.department === department && (x.status || 'Pending') !== 'Cancelled').sort((a,b) => String(a.scheduleTime||'').localeCompare(String(b.scheduleTime||'')));
+}
+window.openCalendarAppointment = (id) => {
+    const item = (window._adminCalendarRequests || []).find(x => x.id === id); if (!item) return;
+    if ((item.status || 'Pending') === 'Pending') return window.openApprovalModal(item.id, item.email || '');
+    if (typeof window.openRescheduleModal === 'function') return window.openRescheduleModal(item.id, item.email || '');
+    alert(`Name: ${item.fullName || 'Citizen'}\nTime: ${formatCalendarTime(item.scheduleTime)}\nOffice: ${item.department || '—'}\nStatus: ${item.status || 'Pending'}`);
+};
+
 function renderAdminCalendar() {
     const host = document.getElementById('adminCalendar');
     const label = document.getElementById('adminCalendarMonth');
@@ -627,9 +647,18 @@ function renderAdminCalendar() {
         const d = new Date(year, month, day), iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,10);
         const item = availability[makeAvailabilityId(iso, department)] || {};
         const openTimes = OFFICE_TIME_SLOTS.filter(slot => isTimeOpen(item, slot.value));
+        const dayAppointments = getAdminCalendarRequestsForDate(iso, department);
         const isPast = iso < todayIso, disabled = isPast || !isMunicipalWorkingDay(iso);
         const selected = window._adminSelectedDate === iso;
-        html += `<button type="button" ${disabled?'disabled':''} onclick="editScheduleDate('${iso}')" class="min-h-[86px] p-2 rounded-xl border text-left transition ${selected?'bg-blue-600/20 border-blue-500':'bg-slate-800 border-slate-700'} ${disabled?'opacity-35 cursor-not-allowed':'hover:border-blue-500'}"><span class="text-sm font-black ${selected?'text-blue-300':'text-white'}">${day}</span><span class="block text-[8px] mt-1 font-black uppercase ${openTimes.length?'text-emerald-300':'text-slate-500'}">${openTimes.length ? `${openTimes.length} TIME${openTimes.length===1?'':'S'} OPEN` : 'CLOSED'}</span><span class="block text-[7px] mt-1 text-slate-500">${openTimes.map(x=>x.label.replace(':00','')).join(' · ') || 'Click to configure'}</span></button>`;
+        const appointmentHtml = dayAppointments.slice(0, 4).map(appt => {
+            const name = escapeCalendarText(appt.fullName || appt.name || 'Citizen');
+            const time = escapeCalendarText(formatCalendarTime(appt.scheduleTime));
+            const status = appt.status || 'Pending';
+            const statusClass = status === 'Approved' ? 'text-emerald-300' : status === 'Rejected' ? 'text-red-300' : 'text-amber-300';
+            return `<button type="button" onclick="event.stopPropagation();openCalendarAppointment('${appt.id}')" class="w-full text-left mt-1 px-1.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-700 border border-slate-700/70 transition"><span class="block text-[8px] font-black text-blue-300 truncate">${time}</span><span class="block text-[8px] font-black text-white truncate">${name}</span><span class="block text-[7px] font-black uppercase ${statusClass}">${escapeCalendarText(status)}</span></button>`;
+        }).join('');
+        const moreHtml = dayAppointments.length > 4 ? `<span class="block text-[7px] mt-1 text-slate-400 font-black">+${dayAppointments.length - 4} MORE APPOINTMENT${dayAppointments.length - 4 === 1 ? '' : 'S'}</span>` : '';
+        html += `<button type="button" ${disabled?'disabled':''} onclick="editScheduleDate('${iso}')" class="min-h-[128px] p-2 rounded-xl border text-left transition ${selected?'bg-blue-600/20 border-blue-500':'bg-slate-800 border-slate-700'} ${disabled?'opacity-35 cursor-not-allowed':'hover:border-blue-500'}"><span class="text-sm font-black ${selected?'text-blue-300':'text-white'}">${day}</span><span class="block text-[8px] mt-1 font-black uppercase ${openTimes.length?'text-emerald-300':'text-slate-500'}">${openTimes.length ? `${openTimes.length} TIME${openTimes.length===1?'':'S'} OPEN` : 'CLOSED'}</span><span class="block text-[7px] mt-1 text-slate-500">${openTimes.map(x=>x.label.replace(':00','')).join(' · ') || 'Click to configure'}</span>${appointmentHtml}${moreHtml}</button>`;
     }
     html += '</div>';
     host.innerHTML = html;
@@ -696,9 +725,9 @@ window.startAdminCalendar = () => {
         const data = {}; snap.forEach(d => data[d.id] = d.data()); window._adminAvailability = data; renderAdminCalendar();
     });
     adminRequestsUnsubscribe = onSnapshot(collection(db, 'lgu_requests'), (snap) => {
-        const counts = {};
-        snap.forEach(d => { const x=d.data(); if(x.scheduleDate && x.department && x.scheduleTime && (x.status||'Pending')!=='Cancelled'){ const k=`${x.scheduleDate}__${x.department}__${x.scheduleTime}`; counts[k]=(counts[k]||0)+1; } });
-        adminBookingCounts = counts; renderAdminCalendar();
+        const counts = {}, requests = [];
+        snap.forEach(d => { const x={id:d.id,...d.data()}; if(x.scheduleDate && x.department && x.scheduleTime && (x.status||'Pending')!=='Cancelled'){ const k=`${x.scheduleDate}__${x.department}__${x.scheduleTime}`; counts[k]=(counts[k]||0)+1; requests.push(x); } });
+        adminBookingCounts = counts; window._adminCalendarRequests = requests; renderAdminCalendar();
     });
     renderAdminCalendar();
 };
