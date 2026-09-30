@@ -670,9 +670,9 @@ function renderUserScheduleCalendar() {
         return;
     }
 
-    let html = `<div class="flex items-center justify-between mb-3"><button type="button" onclick="changeUserCalendarMonth(-1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 font-black">‹</button><div class="text-xs font-black text-slate-700 uppercase">${userCalendarMonth.toLocaleString('en-US',{month:'long',year:'numeric'})}</div><button type="button" onclick="changeUserCalendarMonth(1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 font-black">›</button></div>`;
+    let html = `<div class="user-calendar-nav flex items-center justify-between mb-3"><button type="button" onclick="changeUserCalendarMonth(-1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 font-black">‹</button><div class="month-label text-xs font-black text-slate-700 uppercase">${userCalendarMonth.toLocaleString('en-US',{month:'long',year:'numeric'})}</div><button type="button" onclick="changeUserCalendarMonth(1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 font-black">›</button></div>`;
     html += '<p class="text-[9px] text-slate-500 font-bold mb-3">Select a date first. Only times made available by the office are selectable.</p>';
-    html += '<div class="grid grid-cols-7 gap-1 text-[8px] font-black text-slate-400 uppercase mb-1">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-1">';
+    html += '<div class="user-calendar-weekdays grid grid-cols-7 gap-1 text-[8px] font-black text-slate-400 uppercase mb-1">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="user-calendar-grid grid grid-cols-7 gap-1">';
     for(let i=0;i<startDay;i++) html += '<div></div>';
     for(let day=1; day<=total; day++) {
         const iso = dateOnlyToIso(year, month, day);
@@ -681,7 +681,9 @@ function renderUserScheduleCalendar() {
         const isPast = iso < todayIso, isWeekday = isMunicipalWorkingDay(iso);
         const canPick = !isPast && isWeekday && openTimes.length > 0;
         const selected = selectedDate === iso;
-        html += `<button type="button" ${canPick?'':'disabled'} onclick="selectScheduleDate('${iso}')" class="min-h-[68px] p-1.5 rounded-xl border text-left transition ${selected?'bg-blue-600 border-blue-600 text-white':canPick?'bg-white border-slate-200 hover:border-blue-400':'bg-slate-100 border-slate-200 opacity-45 cursor-not-allowed'}"><span class="text-xs font-black">${day}</span><span class="block text-[7px] mt-1 font-black">${isWeekday?(canPick?`${openTimes.length} TIME${openTimes.length===1?'':'S'} AVAILABLE`:'NO TIMES AVAILABLE'):'WEEKEND'}</span></button>`;
+        const fullStatus = isWeekday ? (canPick ? `${openTimes.length} TIME${openTimes.length===1?'':'S'} AVAILABLE` : 'NO TIMES AVAILABLE') : 'WEEKEND';
+        const shortStatus = isWeekday ? (canPick ? `${openTimes.length} OPEN` : 'CLOSED') : 'WEEKEND';
+        html += `<button type="button" ${canPick?'':'disabled'} onclick="selectScheduleDate('${iso}')" class="user-calendar-cell min-h-[68px] p-1.5 rounded-xl border text-left transition ${selected?'bg-blue-600 border-blue-600 text-white':canPick?'bg-white border-slate-200 hover:border-blue-400':'bg-slate-100 border-slate-200 opacity-45 cursor-not-allowed'}"><span class="day-number text-xs font-black">${day}</span><span class="day-status block text-[7px] mt-1 font-black"><span class="hidden sm:inline">${fullStatus}</span><span class="inline sm:hidden">${shortStatus}</span></span></button>`;
     }
     html += '</div>';
     host.innerHTML = html;
@@ -762,7 +764,7 @@ function renderAdminCalendar() {
     const first = new Date(year, month, 1), last = new Date(year, month + 1, 0), start = first.getDay(), total = last.getDate();
     const today = new Date(), todayIso = dateOnlyToIso(today.getFullYear(), today.getMonth(), today.getDate());
     const availability = window._adminAvailability || {};
-    let html = '<div class="grid grid-cols-7 gap-2 text-[9px] font-black text-slate-700 uppercase mb-2">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-2">';
+    let html = '<div class="admin-calendar-weekdays grid grid-cols-7 gap-2 text-[9px] font-black text-slate-700 uppercase mb-2">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="admin-calendar-grid grid grid-cols-7 gap-2">';
     for(let i=0;i<start;i++) html += '<div></div>';
     for(let day=1; day<=total; day++) {
         const iso = dateOnlyToIso(year, month, day);
@@ -777,11 +779,14 @@ function renderAdminCalendar() {
             const status = appt.status || 'Pending';
             const statusClass = status === 'Approved' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : status === 'Rejected' || status === 'Cancelled' ? 'bg-red-50 border-red-200 text-red-700' : status === 'Completed' ? 'bg-slate-100 border-slate-300 text-slate-700' : 'bg-amber-50 border-amber-200 text-amber-700';
             const statusTextClass = status === 'Approved' ? 'text-emerald-700' : status === 'Rejected' || status === 'Cancelled' ? 'text-red-700' : status === 'Completed' ? 'text-slate-600' : 'text-amber-700';
-            return `<button type="button" onclick="event.stopPropagation();openCalendarAppointment('${appt.id}')" class="w-full text-left mt-1 px-1.5 py-1.5 rounded-lg ${statusClass} hover:shadow-sm transition border"><span class="block text-[8px] font-black text-slate-900 truncate">${time}</span><span class="block text-[9px] font-black text-slate-900 leading-tight truncate">${name}</span><span class="block text-[7px] font-black uppercase ${statusTextClass}">${escapeCalendarText(status)}</span></button>`;
+            return `<button type="button" onclick="event.stopPropagation();openCalendarAppointment('${appt.id}')" class="admin-calendar-appointment w-full text-left mt-1 px-1.5 py-1.5 rounded-lg ${statusClass} hover:shadow-sm transition border"><span class="appt-time block text-[8px] font-black text-slate-900 truncate">${time}</span><span class="appt-name block text-[9px] font-black text-slate-900 leading-tight truncate">${name}</span><span class="appt-status block text-[7px] font-black uppercase ${statusTextClass}">${escapeCalendarText(status)}</span></button>`;
         }).join('');
         const moreHtml = dayAppointments.length > 4 ? `<span class="block text-[7px] mt-1 text-slate-600 font-black">+${dayAppointments.length - 4} MORE APPOINTMENT${dayAppointments.length - 4 === 1 ? '' : 'S'}</span>` : '';
         const todayClass = iso === todayIso ? 'ring-2 ring-blue-300' : '';
-        html += `<div class="min-h-[128px] p-2 rounded-xl border text-left transition ${selected?'bg-blue-50 border-blue-500 shadow-sm':'bg-white border-slate-200'} ${todayClass} ${disabled?'opacity-45':'hover:border-blue-400 hover:shadow-sm'}"><button type="button" ${disabled?'disabled':''} onclick="editScheduleDate('${iso}')" class="w-full text-left"><span class="inline-flex items-center justify-center min-w-7 h-7 px-2 rounded-lg text-sm font-black ${selected?'bg-blue-600 text-white':'text-slate-900'}">${day}</span><span class="block text-[8px] mt-1 font-black uppercase ${openTimes.length?'text-emerald-700':'text-slate-500'}">${openTimes.length ? `${openTimes.length} TIME${openTimes.length===1?'':'S'} OPEN` : 'CLOSED'}</span><span class="block text-[7px] mt-1 text-slate-500">${openTimes.map(x=>x.label.replace(':00','')).join(' · ') || 'Click to configure'}</span></button>${appointmentHtml}${moreHtml}</div>`;
+        const fullOpenStatus = openTimes.length ? `${openTimes.length} TIME${openTimes.length===1?'':'S'} OPEN` : 'CLOSED';
+        const shortOpenStatus = openTimes.length ? `${openTimes.length} OPEN` : 'CLOSED';
+        const timesText = openTimes.map(x=>x.label.replace(':00','')).join(' · ') || 'Click to configure';
+        html += `<div class="admin-calendar-cell min-h-[128px] p-2 rounded-xl border text-left transition ${selected?'bg-blue-50 border-blue-500 shadow-sm':'bg-white border-slate-200'} ${todayClass} ${disabled?'opacity-45':'hover:border-blue-400 hover:shadow-sm'}"><button type="button" ${disabled?'disabled':''} onclick="editScheduleDate('${iso}')" class="w-full text-left"><span class="day-number inline-flex items-center justify-center min-w-7 h-7 px-2 rounded-lg text-sm font-black ${selected?'bg-blue-600 text-white':'text-slate-900'}">${day}</span><span class="day-status block text-[8px] mt-1 font-black uppercase ${openTimes.length?'text-emerald-700':'text-slate-500'}"><span class="hidden sm:inline">${fullOpenStatus}</span><span class="inline sm:hidden">${shortOpenStatus}</span></span><span class="day-times block text-[7px] mt-1 text-slate-500">${timesText}</span></button>${appointmentHtml}${moreHtml}</div>`;
     }
     html += '</div>';
     host.innerHTML = html;
