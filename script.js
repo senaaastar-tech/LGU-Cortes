@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, query, where, deleteDoc, getDoc, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, query, where, deleteDoc, getDoc, getDocs, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAp1YJkWIUYzWdxTV_awoeOIzfghGkGPCU",
@@ -19,10 +19,17 @@ const db = getFirestore(app);
 // Keep Firebase sessions on this browser so refreshing the page does not log users out.
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
-const MAX_APPOINTMENTS_PER_DATE = 5;
+const MAX_APPOINTMENTS_PER_PERIOD = 5;
+const MAX_APPOINTMENTS_PER_DATE = 10;
 let availabilityUnsubscribe = null;
+let userRequestsUnsubscribe = null;
+let adminAvailabilityUnsubscribe = null;
+let adminRequestsUnsubscribe = null;
 let adminCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let adminBookingCounts = {};
+let userCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let userAvailability = {};
+
 
 // Professional animated alert/toast effect (keeps the existing alert messages and behavior).
 window.showAlert = (message, type = "info") => {
@@ -95,6 +102,7 @@ const serviceRequirements = {
 };
 
 window.displayRequirements = () => {
+    renderUserScheduleCalendar();
     const selectedService = document.getElementById('serviceType').value;
     const reqBox = document.getElementById('reqBox');
     const reqText = document.getElementById('reqText');
@@ -126,22 +134,72 @@ window.displayRequirements = () => {
 };
 
 
-window.openPortal = () => {
-    document.getElementById('landingPage')?.classList.add('hidden');
-    document.getElementById('faq')?.classList.add('hidden');
-    document.getElementById('landingFooter')?.classList.add('hidden');
-    document.getElementById('portalPage')?.classList.remove('hidden');
-    window.scrollTo({top:0, behavior:'smooth'});
-};
+function renderCitizenView(view, pushHistory = false) {
+    const landing = document.getElementById('landingPage');
+    const faq = document.getElementById('faq');
+    const footer = document.getElementById('landingFooter');
+    const portal = document.getElementById('portalPage');
+    const authDiv = document.getElementById('authSection');
+    const appDiv = document.getElementById('appSection');
+    const user = auth.currentUser;
+
+    // Authenticated users must never be sent back to the login/landing screen
+    // by browser history. Their session is the source of truth.
+    if (user) view = 'portal';
+
+    if (view === 'portal') {
+        landing?.classList.add('hidden');
+        faq?.classList.add('hidden');
+        footer?.classList.add('hidden');
+        portal?.classList.remove('hidden');
+        if (user) {
+            authDiv?.classList.add('hidden');
+            appDiv?.classList.remove('hidden');
+        }
+    } else {
+        // Public landing view is only available while logged out.
+        if (!user) {
+            portal?.classList.add('hidden');
+            landing?.classList.remove('hidden');
+            faq?.classList.remove('hidden');
+            footer?.classList.remove('hidden');
+        } else {
+            portal?.classList.remove('hidden');
+            authDiv?.classList.add('hidden');
+            appDiv?.classList.remove('hidden');
+        }
+    }
+
+    if (pushHistory) {
+        const nextState = { ...(history.state || {}), lguView: view };
+        history.pushState(nextState, '', view === 'portal' ? '#portal' : '#home');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+window.openPortal = () => renderCitizenView('portal', true);
 
 window.closePortal = () => {
-    if (auth.currentUser) return;
-    document.getElementById('portalPage')?.classList.add('hidden');
-    document.getElementById('landingPage')?.classList.remove('hidden');
-    document.getElementById('faq')?.classList.remove('hidden');
-    document.getElementById('landingFooter')?.classList.remove('hidden');
-    window.scrollTo({top:0, behavior:'smooth'});
+    // While logged in, HOME/back must never navigate to the login dashboard.
+    if (auth.currentUser) {
+        renderCitizenView('portal', false);
+        return;
+    }
+    renderCitizenView('home', true);
 };
+
+// Keep browser Back/Forward inside the citizen portal instead of reloading
+// the page or exposing the login screen after authentication.
+window.addEventListener('popstate', () => {
+    const requested = history.state?.lguView || (location.hash === '#portal' ? 'portal' : 'home');
+    renderCitizenView(requested, false);
+});
+
+// Seed one stable history entry. This prevents the first Back press after
+// entering the portal from jumping directly to an old login-page state.
+if (!history.state?.lguView) {
+    history.replaceState({ ...(history.state || {}), lguView: 'home' }, '', location.pathname + location.search + '#home');
+}
 
 window.toggleChatbot = () => {
     const bot = document.getElementById('chatbot');
@@ -307,200 +365,255 @@ document.addEventListener('DOMContentLoaded', () => {
 window.submitRequest = async () => {
     const name = document.getElementById('citizenFullName').value;
     const scheduleDate = document.getElementById('citizenScheduleDate')?.value || "";
+    const schedulePeriod = document.getElementById('citizenSchedulePeriod')?.value || "";
     const contact = document.getElementById('citizenContact').value;
     const service = document.getElementById('serviceType').value;
     const otherPurpose = document.getElementById('otherPurpose')?.value.trim() || "";
     const fileInput = document.getElementById('requirementUpload').files;
     const submitBtn = document.getElementById('submitRequestBtn');
-    
-    if(!name || !contact || !service || !scheduleDate) return alert("Please fill all citizen details, select a service, and choose an available schedule date.");
+
+    if(!name || !contact || !service || !scheduleDate || !schedulePeriod) return alert("Please fill all citizen details, select an available date, and choose AM or PM.");
     if(service === '__OTHER__' && !otherPurpose) return alert("Please specify the purpose of your appointment.");
     if(service !== '__OTHER__' && fileInput.length === 0) return alert("Please upload at least one required document.");
 
     const selectedOption = document.querySelector(`#serviceType option[value="${CSS.escape(service)}"]`);
     const department = service === '__OTHER__' ? "General / Other Concern" : (selectedOption ? selectedOption.parentElement.label : "General");
     const serviceName = service === '__OTHER__' ? "Others / Other Appointment" : service;
+    const availabilityId = makeAvailabilityId(scheduleDate, department);
 
     try {
         submitBtn.disabled = true;
-
-        const availabilitySnap = await getDoc(doc(db, "schedule_availability", scheduleDate));
-        if (!availabilitySnap.exists() || availabilitySnap.data().available !== true) {
-            throw new Error("That date is not available. Please choose an available date.");
+        const availabilitySnap = await getDoc(doc(db, 'schedule_availability', availabilityId));
+        if (!availabilitySnap.exists()) throw new Error("That office has no schedule available on the selected date.");
+        const availability = availabilitySnap.data();
+        if (availability.available !== true || availability.department !== department || availability.date !== scheduleDate) {
+            throw new Error("That date is not available for the selected office.");
         }
-        const countSnap = await getDocs(query(collection(db, "lgu_requests"), where("scheduleDate", "==", scheduleDate)));
-        const activeBookings = countSnap.docs.filter(d => (d.data().status || "Pending") !== "Cancelled").length;
-        if (activeBookings >= MAX_APPOINTMENTS_PER_DATE) {
-            throw new Error("That date is already full. Please choose another available date.");
-        }
+        const periodAvailable = schedulePeriod === 'AM' ? availability.amAvailable === true : availability.pmAvailable === true;
+        const booked = Number(schedulePeriod === 'AM' ? availability.amBookedCount : availability.pmBookedCount) || 0;
+        if (!periodAvailable) throw new Error(`The ${schedulePeriod} schedule is closed for this office.`);
+        if (booked >= MAX_APPOINTMENTS_PER_PERIOD) throw new Error(`The ${schedulePeriod} schedule is already full (5/5). Please choose another date or period.`);
 
         let uploadedUrls = [];
-
         if (service !== '__OTHER__') {
             submitBtn.innerText = "UPLOADING DOCUMENTS...";
-
             for (let i = 0; i < fileInput.length; i++) {
-            const formData = new FormData();
-            formData.append("file", fileInput[i]);
-            formData.append("upload_preset", "lgu_documents");
-
-            const res = await fetch("https://api.cloudinary.com/v1_1/pegozmkv/auto/upload", {
-                method: "POST",
-                body: formData
-            });
-            const data = await res.json();
-                if (data.secure_url) {
-                    uploadedUrls.push(data.secure_url);
-                }
+                const formData = new FormData();
+                formData.append("file", fileInput[i]);
+                formData.append("upload_preset", "lgu_documents");
+                const res = await fetch("https://api.cloudinary.com/v1_1/pegozmkv/auto/upload", { method: "POST", body: formData });
+                const data = await res.json();
+                if (data.secure_url) uploadedUrls.push(data.secure_url);
             }
-
             if(uploadedUrls.length === 0) throw new Error("Document upload failed.");
         }
 
         submitBtn.innerText = "SAVING REQUEST...";
-
-        await addDoc(collection(db, "lgu_requests"), {
-            uid: auth.currentUser.uid,
-            email: auth.currentUser.email,
-            fullName: name,
-            contact: contact,
-            service: serviceName,
-            purpose: service === '__OTHER__' ? otherPurpose : "",
-            department: department,
-            scheduleDate: scheduleDate,
-            scheduleStatus: "Requested",
-            documentUrls: uploadedUrls,
-            status: "Pending",
-            timestamp: Date.now()
+        await runTransaction(db, async (transaction) => {
+            const ref = doc(db, 'schedule_availability', availabilityId);
+            const fresh = await transaction.get(ref);
+            if (!fresh.exists()) throw new Error("This schedule is no longer available. Please refresh and choose another slot.");
+            const a = fresh.data();
+            const freshBooked = Number(schedulePeriod === 'AM' ? a.amBookedCount : a.pmBookedCount) || 0;
+            const freshOpen = schedulePeriod === 'AM' ? a.amAvailable === true : a.pmAvailable === true;
+            if (a.available !== true || !freshOpen || freshBooked >= MAX_APPOINTMENTS_PER_PERIOD) {
+                throw new Error(`The ${schedulePeriod} schedule just became full or unavailable. Please choose another slot.`);
+            }
+            const slotUpdate = { updatedAt: Date.now() };
+            if (schedulePeriod === 'AM') slotUpdate.amBookedCount = freshBooked + 1;
+            else slotUpdate.pmBookedCount = freshBooked + 1;
+            transaction.update(ref, slotUpdate);
+            const requestRef = doc(collection(db, 'lgu_requests'));
+            transaction.set(requestRef, {
+                uid: auth.currentUser.uid,
+                email: auth.currentUser.email,
+                fullName: name,
+                contact: contact,
+                service: serviceName,
+                purpose: service === '__OTHER__' ? otherPurpose : "",
+                department,
+                scheduleDate,
+                schedulePeriod,
+                scheduleStatus: "Requested",
+                documentUrls: uploadedUrls,
+                status: "Pending",
+                timestamp: Date.now()
+            });
         });
 
         alert(service === '__OTHER__' ? "Appointment Submitted Successfully!" : "Appointment and Documents Submitted Successfully!");
-        
         document.getElementById('citizenFullName').value = "";
-        if(document.getElementById('citizenScheduleDate')) document.getElementById('citizenScheduleDate').value = "";
+        document.getElementById('citizenScheduleDate').value = "";
+        document.getElementById('citizenSchedulePeriod').value = "";
         document.getElementById('citizenContact').value = "";
         document.getElementById('serviceType').value = "";
+        document.getElementById('citizenSchedulePeriod').value = "";
         if(document.getElementById('otherPurpose')) document.getElementById('otherPurpose').value = "";
         document.getElementById('otherPurposeBox')?.classList.add('hidden');
         document.getElementById('uploadRequirementsBox')?.classList.remove('hidden');
         document.getElementById('uploadRequirementsLabel')?.replaceChildren(document.createTextNode('Upload Requirements (PDF/Image - Can upload multiple files)'));
         clearSelectedFiles();
         document.getElementById('reqBox').classList.add('hidden');
-        
-    } catch (e) { 
-        alert(e.message); 
+        renderUserScheduleCalendar();
+    } catch (e) {
+        alert(e.message);
     } finally {
         submitBtn.innerText = "SUBMIT APPOINTMENT";
         submitBtn.disabled = false;
     }
 };
 
+function makeAvailabilityId(date, department) {
+    return `${date}__${encodeURIComponent(department)}`;
+}
+
+function getSelectedDepartment() {
+    const service = document.getElementById('serviceType')?.value || '';
+    if (!service) return '';
+    const selectedOption = document.querySelector(`#serviceType option[value="${CSS.escape(service)}"]`);
+    return service === '__OTHER__' ? 'General / Other Concern' : (selectedOption?.parentElement?.label || 'General / Other Concern');
+}
+
 function startAvailabilityListener() {
     const dateInput = document.getElementById('citizenScheduleDate');
-    const note = document.getElementById('scheduleAvailabilityNote');
     if (!dateInput) return;
     if (availabilityUnsubscribe) availabilityUnsubscribe();
+    if (userRequestsUnsubscribe) userRequestsUnsubscribe();
 
     const today = new Date();
     const isoToday = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0,10);
     dateInput.min = isoToday;
 
     availabilityUnsubscribe = onSnapshot(collection(db, 'schedule_availability'), (snap) => {
-        const available = {};
-        snap.forEach(d => { available[d.id] = d.data(); });
-        dateInput.dataset.availability = JSON.stringify(available);
-        if (dateInput.value && (!available[dateInput.value] || available[dateInput.value].available !== true)) {
-            dateInput.value = '';
-        }
-        if (note) {
-            const dates = Object.entries(available).filter(([date, x]) => x.available === true && date >= isoToday);
-            note.textContent = dates.length ? 'Choose a date marked available by the LGU. Maximum 5 appointments per date.' : 'No schedule dates are currently available. Please check again later.';
-        }
+        userAvailability = {};
+        snap.forEach(d => { userAvailability[d.id] = d.data(); });
+        renderUserScheduleCalendar();
     });
+    renderUserScheduleCalendar();
 }
 
-window.validateScheduleDate = () => {
-    const input = document.getElementById('citizenScheduleDate');
-    if (!input || !input.value) return;
-    let availability = {};
-    try { availability = JSON.parse(input.dataset.availability || '{}'); } catch (_) {}
-    if (!availability[input.value] || availability[input.value].available !== true) {
-        input.value = '';
-        alert('That date is not available. Please choose a date marked available by the LGU.');
+function renderUserScheduleCalendar() {
+    const host = document.getElementById('citizenScheduleCalendar');
+    const note = document.getElementById('scheduleAvailabilityNote');
+    const dateInput = document.getElementById('citizenScheduleDate');
+    const periodInput = document.getElementById('citizenSchedulePeriod');
+    if (!host || !dateInput || !periodInput) return;
+
+    const department = getSelectedDepartment();
+    const year = userCalendarMonth.getFullYear();
+    const month = userCalendarMonth.getMonth();
+    const today = new Date();
+    const todayIso = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+    const selectedDate = dateInput.value;
+    const selectedPeriod = periodInput.value;
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    const start = first.getDay();
+    const total = last.getDate();
+
+    if (!department) {
+        host.innerHTML = '<div class="p-5 text-center text-xs font-bold text-slate-400">Select a service first to view this office’s available dates.</div>';
+        if(note) note.textContent = 'Select a service, then choose AM or PM and an available date.';
+        return;
     }
+
+    let html = `<div class="flex items-center justify-between mb-3"><button type="button" onclick="changeUserCalendarMonth(-1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 font-black">‹</button><div class="text-xs font-black text-slate-700 uppercase">${userCalendarMonth.toLocaleString('en-US',{month:'long',year:'numeric'})}</div><button type="button" onclick="changeUserCalendarMonth(1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 font-black">›</button></div>`;
+    html += `<div class="grid grid-cols-2 gap-2 mb-3"><button type="button" onclick="selectSchedulePeriod('AM')" class="p-2 rounded-xl border text-[10px] font-black ${selectedPeriod==='AM'?'bg-blue-600 text-white border-blue-600':'bg-blue-50 text-blue-700 border-blue-100'}">☀️ MORNING (AM) — 5 MAX</button><button type="button" onclick="selectSchedulePeriod('PM')" class="p-2 rounded-xl border text-[10px] font-black ${selectedPeriod==='PM'?'bg-indigo-600 text-white border-indigo-600':'bg-indigo-50 text-indigo-700 border-indigo-100'}">🌤️ AFTERNOON (PM) — 5 MAX</button></div>`;
+    html += '<div class="grid grid-cols-7 gap-1 text-[8px] font-black text-slate-400 uppercase mb-1">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-1">';
+    for(let i=0;i<start;i++) html += '<div></div>';
+    for(let day=1; day<=total; day++) {
+        const d = new Date(year, month, day);
+        const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+        const item = userAvailability[makeAvailabilityId(iso, department)] || {};
+        const isPast = iso < todayIso;
+        const amOpen = item.available === true && item.amAvailable === true && Number(item.amBookedCount||0) < 5;
+        const pmOpen = item.available === true && item.pmAvailable === true && Number(item.pmBookedCount||0) < 5;
+        const canPick = !isPast && !!selectedPeriod && (selectedPeriod === 'AM' ? amOpen : pmOpen);
+        const selected = selectedDate === iso;
+        const amText = item.available === true && item.amAvailable === true ? `AM ${Number(item.amBookedCount||0)}/5` : 'AM OFF';
+        const pmText = item.available === true && item.pmAvailable === true ? `PM ${Number(item.pmBookedCount||0)}/5` : 'PM OFF';
+        html += `<button type="button" ${canPick?'':'disabled'} onclick="selectScheduleDate('${iso}')" class="min-h-[68px] p-1.5 rounded-xl border text-left transition ${selected?'bg-blue-600 border-blue-600 text-white':canPick?'bg-white border-slate-200 hover:border-blue-400':'bg-slate-100 border-slate-200 opacity-45 cursor-not-allowed'}"><span class="text-xs font-black">${day}</span><span class="block text-[7px] mt-1 font-black">${amText}</span><span class="block text-[7px] font-black">${pmText}</span></button>`;
+    }
+    html += '</div>';
+    host.innerHTML = html;
+    if(note) note.textContent = selectedPeriod ? `Showing ${selectedPeriod} availability for ${department}. Each period has a maximum of 5 appointments.` : `Choose AM or PM to enable available dates for ${department}.`;
+}
+
+window.changeUserCalendarMonth = (delta) => {
+    userCalendarMonth = new Date(userCalendarMonth.getFullYear(), userCalendarMonth.getMonth() + delta, 1);
+    renderUserScheduleCalendar();
 };
+window.selectSchedulePeriod = (period) => {
+    const input = document.getElementById('citizenSchedulePeriod');
+    if (!input) return;
+    input.value = period;
+    document.getElementById('citizenScheduleDate').value = '';
+    renderUserScheduleCalendar();
+};
+window.selectScheduleDate = (date) => {
+    const period = document.getElementById('citizenSchedulePeriod')?.value;
+    const department = getSelectedDepartment();
+    const item = userAvailability[makeAvailabilityId(date, department)];
+    if (!period || !item) return;
+    const open = period === 'AM' ? item.amAvailable === true && Number(item.amBookedCount||0) < 5 : item.pmAvailable === true && Number(item.pmBookedCount||0) < 5;
+    if (!open) return alert(`The ${period} schedule is unavailable or full.`);
+    document.getElementById('citizenScheduleDate').value = date;
+    renderUserScheduleCalendar();
+};
+window.validateScheduleDate = () => renderUserScheduleCalendar();
 
 function renderAdminCalendar() {
     const host = document.getElementById('adminCalendar');
     const label = document.getElementById('adminCalendarMonth');
     if (!host) return;
-    const year = adminCalendarMonth.getFullYear();
-    const month = adminCalendarMonth.getMonth();
+    const department = document.getElementById('adminScheduleDept')?.value || '';
+    const year = adminCalendarMonth.getFullYear(), month = adminCalendarMonth.getMonth();
     if (label) label.textContent = adminCalendarMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-
-    const first = new Date(year, month, 1);
-    const last = new Date(year, month + 1, 0);
-    const start = first.getDay();
-    const total = last.getDate();
-    const today = new Date();
-    const todayIso = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+    if (!department) { host.innerHTML = '<div class="p-6 text-center text-xs font-bold text-slate-500">Select an office to manage its schedule.</div>'; return; }
+    const first = new Date(year, month, 1), last = new Date(year, month + 1, 0), start = first.getDay(), total = last.getDate();
+    const today = new Date(), todayIso = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0,10);
     const availability = window._adminAvailability || {};
     let html = '<div class="grid grid-cols-7 gap-2 text-[9px] font-black text-slate-500 uppercase mb-2">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-2">';
     for(let i=0;i<start;i++) html += '<div></div>';
     for(let day=1; day<=total; day++) {
-        const d = new Date(year, month, day);
-        const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,10);
-        const item = availability[iso] || {};
+        const d = new Date(year, month, day), iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+        const item = availability[makeAvailabilityId(iso, department)] || {};
         const isPast = iso < todayIso;
-        const isAvailable = item.available === true;
-        const count = Number(adminBookingCounts[iso] || item.bookedCount || 0);
-        const full = count >= MAX_APPOINTMENTS_PER_DATE;
+        const am = Number(item.amBookedCount||0), pm = Number(item.pmBookedCount||0);
+        const amOpen = item.available === true && item.amAvailable === true, pmOpen = item.available === true && item.pmAvailable === true;
         const disabled = isPast;
-        html += `<button type="button" ${disabled ? 'disabled' : ''} onclick="toggleScheduleDate('${iso}')" class="min-h-[72px] p-2 rounded-xl border text-left transition ${isAvailable ? 'bg-emerald-500/15 border-emerald-500/50' : 'bg-slate-800 border-slate-700'} ${disabled ? 'opacity-35 cursor-not-allowed' : 'hover:border-blue-500'}"><span class="text-sm font-black ${isAvailable ? 'text-emerald-300' : 'text-white'}">${day}</span><span class="block text-[8px] mt-1 font-black uppercase ${isAvailable ? 'text-emerald-400' : 'text-slate-500'}">${isAvailable ? (full ? 'FULL' : 'AVAILABLE') : 'CLOSED'}</span><span class="block text-[8px] text-slate-400 mt-1">${count}/${MAX_APPOINTMENTS_PER_DATE}</span></button>`;
+        html += `<button type="button" ${disabled?'disabled':''} onclick="toggleScheduleDate('${iso}')" class="min-h-[86px] p-2 rounded-xl border text-left transition ${item.available===true?'bg-emerald-500/15 border-emerald-500/50':'bg-slate-800 border-slate-700'} ${disabled?'opacity-35 cursor-not-allowed':'hover:border-blue-500'}"><span class="text-sm font-black ${item.available===true?'text-emerald-300':'text-white'}">${day}</span><span class="block text-[8px] mt-1 font-black uppercase ${amOpen?'text-blue-300':'text-slate-500'}">AM ${am}/5 ${amOpen?'OPEN':'OFF'}</span><span class="block text-[8px] font-black uppercase ${pmOpen?'text-indigo-300':'text-slate-500'}">PM ${pm}/5 ${pmOpen?'OPEN':'OFF'}</span></button>`;
     }
     html += '</div>';
     host.innerHTML = html;
 }
 
-window.changeAdminCalendarMonth = (delta) => {
-    adminCalendarMonth = new Date(adminCalendarMonth.getFullYear(), adminCalendarMonth.getMonth() + delta, 1);
-    renderAdminCalendar();
-};
-
+window.changeAdminCalendarMonth = (delta) => { adminCalendarMonth = new Date(adminCalendarMonth.getFullYear(), adminCalendarMonth.getMonth() + delta, 1); renderAdminCalendar(); };
 window.toggleScheduleDate = async (date) => {
+    const department = document.getElementById('adminScheduleDept')?.value || '';
+    if (!department) return alert('Select an office first.');
     try {
-        const ref = doc(db, 'schedule_availability', date);
+        const ref = doc(db, 'schedule_availability', makeAvailabilityId(date, department));
         const snap = await getDoc(ref);
         const current = snap.exists() ? snap.data() : {};
-        const nextAvailable = current.available !== true;
-        if (nextAvailable && Number(current.bookedCount || 0) >= MAX_APPOINTMENTS_PER_DATE) {
-            return alert('This date already has 5 appointments and cannot accept more.');
-        }
-        await updateDoc(ref, { available: nextAvailable, updatedAt: Date.now() }).catch(async (e) => {
-            if (e.code === 'not-found') {
-                await setDoc(ref, { available: nextAvailable, bookedCount: 0, updatedAt: Date.now() });
-            } else throw e;
-        });
+        // Cycle: both open -> AM only -> PM only -> closed.
+        const state = current.available === true ? `${current.amAvailable?'A':''}${current.pmAvailable?'P':''}` : '';
+        let next = state === 'AP' ? {available:true, amAvailable:true, pmAvailable:false} : state === 'A' ? {available:true, amAvailable:false, pmAvailable:true} : state === 'P' ? {available:false, amAvailable:false, pmAvailable:false} : {available:true, amAvailable:true, pmAvailable:true};
+        await setDoc(ref, { date, department, amBookedCount:Number(current.amBookedCount||0), pmBookedCount:Number(current.pmBookedCount||0), updatedAt:Date.now(), ...next }, {merge:true});
     } catch (e) { alert('Unable to update schedule date: ' + e.message); }
 };
 
 window.startAdminCalendar = () => {
     const host = document.getElementById('adminCalendar');
     if (!host) return;
-    onSnapshot(collection(db, 'schedule_availability'), (snap) => {
-        const data = {};
-        snap.forEach(d => data[d.id] = d.data());
-        window._adminAvailability = data;
-        renderAdminCalendar();
+    adminAvailabilityUnsubscribe?.(); adminRequestsUnsubscribe?.();
+    adminAvailabilityUnsubscribe = onSnapshot(collection(db, 'schedule_availability'), (snap) => {
+        const data = {}; snap.forEach(d => data[d.id] = d.data()); window._adminAvailability = data; renderAdminCalendar();
     });
-    onSnapshot(collection(db, 'lgu_requests'), (snap) => {
+    adminRequestsUnsubscribe = onSnapshot(collection(db, 'lgu_requests'), (snap) => {
         const counts = {};
-        snap.forEach(d => {
-            const x = d.data();
-            if (x.scheduleDate && (x.status || 'Pending') !== 'Cancelled') counts[x.scheduleDate] = (counts[x.scheduleDate] || 0) + 1;
-        });
-        adminBookingCounts = counts;
-        renderAdminCalendar();
+        snap.forEach(d => { const x=d.data(); if(x.scheduleDate && x.department && x.schedulePeriod && (x.status||'Pending')!=='Cancelled'){ const k=`${x.scheduleDate}__${x.department}__${x.schedulePeriod}`; counts[k]=(counts[k]||0)+1; } });
+        adminBookingCounts = counts; renderAdminCalendar();
     });
     renderAdminCalendar();
 };
@@ -554,68 +667,246 @@ function loadUserRequests(uid) {
 }
 
 window.cancelMyRequest = async (id) => {
-    if(confirm("Do you want to cancel this appointment?")) {
-        try {
-            await deleteDoc(doc(db, "lgu_requests", id));
-            alert("Appointment cancelled successfully");
-        } catch (e) {
-            alert("Error: " + e.message);
-        }
+    if (!confirm("Do you want to cancel this appointment? The reserved slot will be released.")) return;
+    try {
+        const requestRef = doc(db, "lgu_requests", id);
+        await runTransaction(db, async (transaction) => {
+            const snap = await transaction.get(requestRef);
+            if (!snap.exists()) throw new Error("Appointment no longer exists.");
+            const data = snap.data();
+            if ((data.status || 'Pending') === 'Cancelled') return;
+            if (data.scheduleDate && data.schedulePeriod && data.department) {
+                const slotRef = doc(db, 'schedule_availability', makeAvailabilityId(data.scheduleDate, data.department));
+                const slotSnap = await transaction.get(slotRef);
+                if (slotSnap.exists()) {
+                    const field = data.schedulePeriod === 'PM' ? 'pmBookedCount' : 'amBookedCount';
+                    transaction.update(slotRef, {
+                        [field]: Math.max(0, Number(slotSnap.data()[field] || 0) - 1),
+                        updatedAt: Date.now()
+                    });
+                }
+            }
+            transaction.update(requestRef, { status: "Cancelled", scheduleStatus: "Cancelled", updatedAt: Date.now() });
+        });
+        alert("Appointment cancelled and the slot was released.");
+    } catch (e) {
+        alert("Error: " + e.message);
     }
 };
 
-window.openScheduleModal = (id, email) => {
+
+window.openApprovalModal = async (id, email) => {
     currentDocId = id;
-    currentCitizenEmail = email;
-    document.getElementById('targetEmail').innerText = `EMAIL TO: ${email}`;
+    currentCitizenEmail = email || '';
+    const snap = await getDoc(doc(db, 'lgu_requests', id));
+    if (!snap.exists()) return alert('Appointment no longer exists.');
+    const data = snap.data();
+    const date = data.scheduleDate || '—';
+    const period = data.schedulePeriod === 'PM' ? 'Afternoon (PM)' : data.schedulePeriod === 'AM' ? 'Morning (AM)' : '—';
+    document.getElementById('scheduleModalTitle').innerText = 'Approve Appointment';
+    document.getElementById('targetEmail').innerText = `CONFIRMATION EMAIL: ${email || 'NO EMAIL'}`;
+    document.getElementById('approvalSummary').innerHTML =
+        `<div class="text-white">${data.fullName || 'Citizen'}</div>
+         <div>OFFICE: <span class="text-white">${data.department || '—'}</span></div>
+         <div>SERVICE: <span class="text-white">${data.service || '—'}</span></div>
+         <div>DATE: <span class="text-white">${date}</span></div>
+         <div>PERIOD: <span class="text-white">${period}</span></div>`;
+    document.getElementById('rescheduleFields').classList.add('hidden');
+    const btn = document.getElementById('sendEmailBtn');
+    btn.innerText = 'APPROVE & EMAIL';
+    btn.dataset.mode = 'approve';
+    document.getElementById('emailModal').classList.remove('hidden');
+};
+
+window.openRescheduleModal = async (id, email) => {
+    currentDocId = id;
+    currentCitizenEmail = email || '';
+    const snap = await getDoc(doc(db, 'lgu_requests', id));
+    if (!snap.exists()) return alert('Appointment no longer exists.');
+    const data = snap.data();
+    document.getElementById('scheduleModalTitle').innerText = 'Reschedule Appointment';
+    document.getElementById('targetEmail').innerText = `UPDATED SCHEDULE EMAIL: ${email || 'NO EMAIL'}`;
+    document.getElementById('approvalSummary').innerHTML =
+        `<div class="text-white">${data.fullName || 'Citizen'}</div>
+         <div>OFFICE: <span class="text-white">${data.department || '—'}</span></div>
+         <div>SERVICE: <span class="text-white">${data.service || '—'}</span></div>
+         <div>CURRENT: <span class="text-white">${data.scheduleDate || '—'} · ${data.schedulePeriod || '—'}</span></div>`;
+    document.getElementById('rescheduleFields').classList.remove('hidden');
+    document.getElementById('schedDate').value = data.scheduleDate || '';
+    document.getElementById('schedPeriod').value = data.schedulePeriod || 'AM';
+    const btn = document.getElementById('sendEmailBtn');
+    btn.innerText = 'RESCHEDULE & EMAIL';
+    btn.dataset.mode = 'reschedule';
     document.getElementById('emailModal').classList.remove('hidden');
 };
 
 window.closeModal = () => document.getElementById('emailModal').classList.add('hidden');
 
+async function releaseReservedSlot(transaction, requestData) {
+    if (!requestData?.scheduleDate || !requestData?.schedulePeriod || !requestData?.department) return;
+    const ref = doc(db, 'schedule_availability', makeAvailabilityId(requestData.scheduleDate, requestData.department));
+    const snap = await transaction.get(ref);
+    if (!snap.exists()) return;
+    const field = requestData.schedulePeriod === 'PM' ? 'pmBookedCount' : 'amBookedCount';
+    const current = Number(snap.data()[field] || 0);
+    transaction.update(ref, { [field]: Math.max(0, current - 1), updatedAt: Date.now() });
+}
+
+window.approveAppointment = async (id) => {
+    try {
+        const requestRef = doc(db, 'lgu_requests', id);
+        const snap = await getDoc(requestRef);
+        if (!snap.exists()) throw new Error('Appointment no longer exists.');
+        const data = snap.data();
+        if ((data.status || 'Pending') !== 'Pending') return alert('Only pending appointments can be approved.');
+        if (!data.scheduleDate || !data.schedulePeriod) throw new Error('The citizen has not selected a valid date and AM/PM period.');
+
+        const availabilityRef = doc(db, 'schedule_availability', makeAvailabilityId(data.scheduleDate, data.department));
+        await runTransaction(db, async (transaction) => {
+            const aSnap = await transaction.get(availabilityRef);
+            if (!aSnap.exists()) throw new Error('The selected availability is no longer available.');
+            const a = aSnap.data();
+            const open = data.schedulePeriod === 'AM' ? a.amAvailable === true : a.pmAvailable === true;
+            if (!open) throw new Error(`The ${data.schedulePeriod} schedule is currently closed.`);
+            transaction.update(requestRef, {
+                status: 'Approved',
+                scheduleStatus: 'Approved',
+                schedule: `${data.scheduleDate} · ${data.schedulePeriod === 'AM' ? 'Morning (AM)' : 'Afternoon (PM)'}`,
+                updatedAt: Date.now()
+            });
+        });
+
+        await emailjs.send('service_yk1dfxf', 'template_agmhyzw', {
+            to_email: data.email || currentCitizenEmail,
+            appointment_date: data.scheduleDate,
+            appointment_time: data.schedulePeriod === 'AM' ? 'Morning (AM)' : 'Afternoon (PM)',
+            message: `Your appointment with ${data.department || 'LGU Cortes'} has been approved.`
+        });
+        alert('Appointment approved and confirmation email sent.');
+        closeModal();
+    } catch (e) {
+        alert('Approval failed: ' + (e?.message || e));
+    }
+};
+
+window.rejectAppointment = async (id) => {
+    if (!confirm('Reject this appointment request? The reserved slot will be released.')) return;
+    try {
+        const requestRef = doc(db, 'lgu_requests', id);
+        await runTransaction(db, async (transaction) => {
+            const snap = await transaction.get(requestRef);
+            if (!snap.exists()) throw new Error('Appointment no longer exists.');
+            const data = snap.data();
+            if ((data.status || 'Pending') !== 'Pending') throw new Error('Only pending appointments can be rejected.');
+            await releaseReservedSlot(transaction, data);
+            transaction.update(requestRef, { status: 'Rejected', scheduleStatus: 'Rejected', updatedAt: Date.now() });
+        });
+        alert('Appointment rejected and the slot was released.');
+    } catch (e) {
+        alert('Rejection failed: ' + (e?.message || e));
+    }
+};
+
 window.updateStatus = async (id, status) => {
-    await updateDoc(doc(db, "lgu_requests", id), { status });
+    if (status === 'Completed') {
+        await updateDoc(doc(db, "lgu_requests", id), { status, scheduleStatus: 'Completed', updatedAt: Date.now() });
+        return;
+    }
+    await updateDoc(doc(db, "lgu_requests", id), { status, updatedAt: Date.now() });
 };
 
 window.deleteRequest = async (id) => {
-    if(confirm("Are you sure you want to delete this record?")) {
-        try {
-            await deleteDoc(doc(db, "lgu_requests", id));
-            alert("Record deleted.");
-        } catch (e) { alert("Error deleting: " + e.message); }
-    }
+    if (!confirm("Are you sure you want to delete this record? If it has a reserved slot, that slot will be released.")) return;
+    try {
+        const requestRef = doc(db, "lgu_requests", id);
+        await runTransaction(db, async (transaction) => {
+            const snap = await transaction.get(requestRef);
+            if (!snap.exists()) return;
+            const data = snap.data();
+            if (data.scheduleDate && data.schedulePeriod && data.department && (data.status || 'Pending') !== 'Cancelled') {
+                const slotRef = doc(db, 'schedule_availability', makeAvailabilityId(data.scheduleDate, data.department));
+                const slotSnap = await transaction.get(slotRef);
+                if (slotSnap.exists()) {
+                    const field = data.schedulePeriod === 'PM' ? 'pmBookedCount' : 'amBookedCount';
+                    transaction.update(slotRef, { [field]: Math.max(0, Number(slotSnap.data()[field] || 0) - 1), updatedAt: Date.now() });
+                }
+            }
+            transaction.delete(requestRef);
+        });
+        alert("Record deleted and any reserved slot was released.");
+    } catch (e) { alert("Error deleting: " + e.message); }
 };
 
 const sendBtn = document.getElementById('sendEmailBtn');
 if(sendBtn) {
     sendBtn.onclick = async () => {
-        const date = document.getElementById('schedDate').value;
-        const time = document.getElementById('schedTime').value;
-        if(!date || !time) return alert("Set schedule first!");
+        const mode = sendBtn.dataset.mode || 'approve';
+        if (mode === 'reschedule') {
+            const date = document.getElementById('schedDate').value;
+            const period = document.getElementById('schedPeriod').value;
+            if (!date || !period) return alert('Choose a new date and AM/PM period.');
+            try {
+                const requestRef = doc(db, 'lgu_requests', currentDocId);
+                const requestSnap = await getDoc(requestRef);
+                if (!requestSnap.exists()) throw new Error('Appointment no longer exists.');
+                const requestData = requestSnap.data();
+                const department = requestData.department || 'General / Other Concern';
+                const oldDate = requestData.scheduleDate;
+                const oldPeriod = requestData.schedulePeriod;
+                const sameSlot = oldDate === date && oldPeriod === period;
+                const newRef = doc(db, 'schedule_availability', makeAvailabilityId(date, department));
 
-        try {
-            const availabilitySnap = await getDoc(doc(db, 'schedule_availability', date));
-            if (!availabilitySnap.exists() || availabilitySnap.data().available !== true) throw new Error('Selected date is not available.');
-            const countSnap = await getDocs(query(collection(db, 'lgu_requests'), where('scheduleDate', '==', date)));
-            const active = countSnap.docs.filter(d => d.id !== currentDocId && (d.data().status || 'Pending') !== 'Cancelled').length;
-            if (active >= MAX_APPOINTMENTS_PER_DATE) throw new Error('This date already has 5 appointments. Choose another date.');
+                await runTransaction(db, async (transaction) => {
+                    const newSnap = await transaction.get(newRef);
+                    if (!newSnap.exists()) throw new Error('The selected date is not available for this office.');
+                    const a = newSnap.data();
+                    const open = period === 'AM' ? a.amAvailable === true : a.pmAvailable === true;
+                    const newField = period === 'PM' ? 'pmBookedCount' : 'amBookedCount';
+                    const newCount = Number(a[newField] || 0);
 
-            await emailjs.send('service_yk1dfxf', 'template_agmhyzw', {
-                to_email: currentCitizenEmail,
-                appointment_date: date,
-                appointment_time: time,
-                message: "Please visit LGU Cortes on your scheduled date."
-            });
+                    let oldSnap = null;
+                    let oldRef = null;
+                    let oldField = null;
+                    if (!sameSlot && oldDate && oldPeriod) {
+                        oldRef = doc(db, 'schedule_availability', makeAvailabilityId(oldDate, department));
+                        oldSnap = await transaction.get(oldRef);
+                        oldField = oldPeriod === 'PM' ? 'pmBookedCount' : 'amBookedCount';
+                    }
 
-            await updateDoc(doc(db, "lgu_requests", currentDocId), { 
-                status: "Approved",
-                scheduleDate: date,
-                schedule: `${date} @ ${time}`
-            });
+                    if (!open) throw new Error(`The ${period} schedule is closed for this office.`);
+                    if (!sameSlot && newCount >= MAX_APPOINTMENTS_PER_PERIOD) throw new Error(`The ${period} schedule is already full (5/5).`);
 
-            alert("Notification Sent!");
-            closeModal();
-        } catch (e) { alert("Error: " + JSON.stringify(e)); }
+                    if (!sameSlot) {
+                        transaction.update(newRef, { [newField]: newCount + 1, updatedAt: Date.now() });
+                        if (oldSnap?.exists()) {
+                            transaction.update(oldRef, { [oldField]: Math.max(0, Number(oldSnap.data()[oldField] || 0) - 1), updatedAt: Date.now() });
+                        }
+                    }
+                    transaction.update(requestRef, {
+                        status: requestData.status || 'Approved',
+                        scheduleStatus: 'Approved',
+                        scheduleDate: date,
+                        schedulePeriod: period,
+                        schedule: `${date} · ${period === 'AM' ? 'Morning (AM)' : 'Afternoon (PM)'}`,
+                        updatedAt: Date.now()
+                    });
+                });
+
+                await emailjs.send('service_yk1dfxf', 'template_agmhyzw', {
+                    to_email: requestData.email || currentCitizenEmail,
+                    appointment_date: date,
+                    appointment_time: period === 'AM' ? 'Morning (AM)' : 'Afternoon (PM)',
+                    message: `Your appointment schedule with ${department} has been updated.`
+                });
+                alert('Appointment rescheduled and updated confirmation email sent.');
+                closeModal();
+            } catch (e) {
+                alert('Reschedule failed: ' + (e?.message || e));
+            }
+            return;
+        }
+
+        await approveAppointment(currentDocId);
     };
 }
 
@@ -681,11 +972,7 @@ window.loadOfficerData = () => {
                         </div>
                     </div>
                     <div class="flex flex-col gap-2 pt-4 mt-4 border-t border-slate-800">
-                        <button onclick="openScheduleModal('${data.id}', '${data.email || ''}')" class="w-full bg-blue-600 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-blue-500 transition">SET / UPDATE SCHEDULE</button>
-                        <div class="flex gap-2">
-                            <button onclick="updateStatus('${data.id}', 'Completed')" class="flex-1 bg-green-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-green-600 transition">MARK AS DONE</button>
-                            <button onclick="deleteRequest('${data.id}')" class="flex-1 bg-red-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-red-600 transition">DELETE</button>
-                        </div>
+                        ${data.status === 'Pending' ? `<div class="flex gap-2"><button onclick="openApprovalModal('${data.id}', '${data.email || ''}')" class="flex-1 bg-blue-600 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-blue-500 transition">APPROVE & EMAIL</button><button onclick="rejectAppointment('${data.id}')" class="flex-1 bg-red-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-red-600 transition">REJECT</button></div>` : data.status === 'Approved' ? `<div class="flex gap-2"><button onclick="openRescheduleModal('${data.id}', '${data.email || ''}')" class="flex-1 bg-indigo-600 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-indigo-500 transition">RESCHEDULE</button><button onclick="updateStatus('${data.id}', 'Completed')" class="flex-1 bg-green-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-green-600 transition">MARK AS DONE</button></div>` : `<button onclick="deleteRequest('${data.id}')" class="w-full bg-red-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-red-600 transition">DELETE</button>`}
                     </div>
                 </div>`;
         });
@@ -756,8 +1043,7 @@ window.loadAdminDataByDept = (deptName) => {
                         </button>
                     </div>
                     <div class="flex flex-col gap-2 pt-4 border-t border-slate-800">
-                        <button onclick="openScheduleModal('${data.id}', '${data.email}')" class="w-full bg-blue-600 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-blue-500 transition">SET / UPDATE SCHED</button>
-                        <button onclick="updateStatus('${data.id}', 'Completed')" class="w-full bg-green-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-green-600 transition">MARK AS DONE</button>
+                        ${data.status === 'Pending' ? `<div class="flex gap-2"><button onclick="openApprovalModal('${data.id}', '${data.email || ''}')" class="flex-1 bg-blue-600 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-blue-500 transition">APPROVE & EMAIL</button><button onclick="rejectAppointment('${data.id}')" class="flex-1 bg-red-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-red-600 transition">REJECT</button></div>` : data.status === 'Approved' ? `<div class="flex gap-2"><button onclick="openRescheduleModal('${data.id}', '${data.email || ''}')" class="flex-1 bg-indigo-600 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-indigo-500 transition">RESCHEDULE</button><button onclick="updateStatus('${data.id}', 'Completed')" class="flex-1 bg-green-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-green-600 transition">MARK AS DONE</button></div>` : `<button onclick="deleteRequest('${data.id}')" class="w-full bg-red-700 p-3 rounded-xl font-black text-[9px] uppercase hover:bg-red-600 transition">DELETE</button>`}
                     </div>
                 </div>`;
         });

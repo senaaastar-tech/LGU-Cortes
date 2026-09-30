@@ -21,7 +21,19 @@ service cloud.firestore {
 
     match /schedule_availability/{dateId} {
       allow read: if signedIn();
-      allow create, update, delete: if isOfficer() || isStaff();
+      allow create, delete: if isOfficer() || isStaff();
+      allow update: if isOfficer() || isStaff()
+        || (signedIn()
+            && request.resource.data.department == resource.data.department
+            && request.resource.data.date == resource.data.date
+            && request.resource.data.available == resource.data.available
+            && request.resource.data.amAvailable == resource.data.amAvailable
+            && request.resource.data.pmAvailable == resource.data.pmAvailable
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amBookedCount','pmBookedCount','updatedAt'])
+            && ((request.resource.data.amBookedCount == resource.data.amBookedCount + 1 && request.resource.data.pmBookedCount == resource.data.pmBookedCount)
+                || (request.resource.data.pmBookedCount == resource.data.pmBookedCount + 1 && request.resource.data.amBookedCount == resource.data.amBookedCount))
+            && request.resource.data.amBookedCount <= 5
+            && request.resource.data.pmBookedCount <= 5);
     }
 
     match /lgu_requests/{requestId} {
