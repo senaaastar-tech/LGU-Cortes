@@ -32,9 +32,19 @@ const OFFICE_TIME_SLOTS = [
     { value: '16:00', label: '4:00 PM', period: 'PM' },
     { value: '17:00', label: '5:00 PM', period: 'PM' }
 ];
+function dateOnlyToIso(year, monthIndex, day) {
+    return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+function localTodayIso() {
+    const d = new Date();
+    return dateOnlyToIso(d.getFullYear(), d.getMonth(), d.getDate());
+}
 function isMunicipalWorkingDay(isoDate) {
-    const d = new Date(`${isoDate}T00:00:00`);
-    const day = d.getDay();
+    // Appointment dates are date-only values. Never parse them through local/UTC
+    // midnight because that can move a Friday into Saturday in some environments.
+    const m = String(isoDate || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return false;
+    const day = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay();
     return day >= 1 && day <= 5;
 }
 function getTimeSlotByValue(value) {
@@ -535,7 +545,7 @@ function startAvailabilityListener() {
     if (userRequestsUnsubscribe) userRequestsUnsubscribe();
 
     const today = new Date();
-    const isoToday = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+    const isoToday = dateOnlyToIso(today.getFullYear(), today.getMonth(), today.getDate());
     dateInput.min = isoToday;
 
     availabilityUnsubscribe = onSnapshot(collection(db, 'schedule_availability'), (snap) => {
@@ -557,7 +567,7 @@ function renderUserScheduleCalendar() {
     const department = getSelectedDepartment();
     const year = userCalendarMonth.getFullYear(), month = userCalendarMonth.getMonth();
     const today = new Date();
-    const todayIso = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+    const todayIso = dateOnlyToIso(today.getFullYear(), today.getMonth(), today.getDate());
     const selectedDate = dateInput.value;
     const selectedTime = timeInput?.value || '';
     const first = new Date(year, month, 1), last = new Date(year, month + 1, 0);
@@ -575,8 +585,7 @@ function renderUserScheduleCalendar() {
     html += '<div class="grid grid-cols-7 gap-1 text-[8px] font-black text-slate-400 uppercase mb-1">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-1">';
     for(let i=0;i<startDay;i++) html += '<div></div>';
     for(let day=1; day<=total; day++) {
-        const d = new Date(year, month, day);
-        const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+        const iso = dateOnlyToIso(year, month, day);
         const item = userAvailability[makeAvailabilityId(iso, department)] || {};
         const openTimes = OFFICE_TIME_SLOTS.filter(slot => isTimeOpen(item, slot.value));
         const isPast = iso < todayIso, isWeekday = isMunicipalWorkingDay(iso);
@@ -620,13 +629,18 @@ function formatCalendarTime(time) {
 function escapeCalendarText(value) {
     return String(value ?? '').replace(/[&<>\'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
 }
+function normalizeCalendarDate(value) {
+    const s = String(value ?? "").trim();
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? s : s;
+}
 function normalizeCalendarDepartment(value) {
     return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 function getAdminCalendarRequestsForDate(date, department) {
     const target = normalizeCalendarDepartment(department);
     return (window._adminCalendarRequests || []).filter(x => {
-        if (x.scheduleDate !== date || (x.status || 'Pending') === 'Cancelled') return false;
+        if (normalizeCalendarDate(x.scheduleDate) !== normalizeCalendarDate(date) || (x.status || 'Pending') === 'Cancelled') return false;
         const stored = normalizeCalendarDepartment(x.department);
         // Match the office robustly even when capitalization/extra spaces differ.
         return stored === target;
@@ -648,12 +662,12 @@ function renderAdminCalendar() {
     if (label) label.textContent = adminCalendarMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' });
     if (!department) { host.innerHTML = '<div class="p-6 text-center text-xs font-bold text-slate-500">Select an office to manage its schedule.</div>'; renderAdminTimeEditor(); return; }
     const first = new Date(year, month, 1), last = new Date(year, month + 1, 0), start = first.getDay(), total = last.getDate();
-    const today = new Date(), todayIso = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+    const today = new Date(), todayIso = dateOnlyToIso(today.getFullYear(), today.getMonth(), today.getDate());
     const availability = window._adminAvailability || {};
     let html = '<div class="grid grid-cols-7 gap-2 text-[9px] font-black text-slate-500 uppercase mb-2">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-2">';
     for(let i=0;i<start;i++) html += '<div></div>';
     for(let day=1; day<=total; day++) {
-        const d = new Date(year, month, day), iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+        const iso = dateOnlyToIso(year, month, day);
         const item = availability[makeAvailabilityId(iso, department)] || {};
         const openTimes = OFFICE_TIME_SLOTS.filter(slot => isTimeOpen(item, slot.value));
         const dayAppointments = getAdminCalendarRequestsForDate(iso, department);
