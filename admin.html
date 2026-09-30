@@ -46,7 +46,13 @@
         </select>
 
         <input id="adminUser" type="text" placeholder="Username (e.g. mpdo, bplo)" class="w-full p-4 mb-4 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
-        <input id="adminPass" type="password" placeholder="Password" class="w-full p-4 mb-6 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+        <div class="relative mb-2">
+            <input id="adminPass" type="password" placeholder="Password" class="w-full p-4 pr-20 rounded-xl bg-slate-800 border-none text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+            <button type="button" onclick="toggleAdminPassword()" class="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-blue-400 uppercase hover:text-blue-300">SHOW</button>
+        </div>
+        <label class="flex items-center gap-2 mb-6 text-[10px] text-slate-400 font-bold uppercase cursor-pointer">
+            <input id="rememberAdmin" type="checkbox" checked class="rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500"> Keep me signed in on this device
+        </label>
         <button onclick="checkAdmin()" class="w-full bg-blue-600 hover:bg-blue-500 p-4 rounded-xl font-black transition-all shadow-lg active:scale-95 text-xs">LOGIN TO CONSOLE</button>
     </div>
 
@@ -59,8 +65,26 @@
                     <p class="text-[10px] text-blue-500 font-black mt-2 tracking-[0.2em]">OFFICIAL LGU CORTES CONNECT</p>
                 </div>
             </div>
-            <button onclick="location.reload()" class="bg-red-950/30 text-red-500 px-6 py-2 rounded-xl text-xs font-black hover:bg-red-600 hover:text-white transition uppercase">Logout</button>
+            <button onclick="logoutAdmin()" class="bg-red-950/30 text-red-500 px-6 py-2 rounded-xl text-xs font-black hover:bg-red-600 hover:text-white transition uppercase">Logout</button>
         </header>
+
+        <section class="mb-8 bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-5">
+                <div>
+                    <h2 class="text-lg font-black text-white uppercase">Appointment Availability Calendar</h2>
+                    <p class="text-[10px] text-slate-500 mt-1">Click a date to open/close it for citizens. Maximum 5 appointments per date.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="changeAdminCalendarMonth(-1)" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 font-black">‹</button>
+                    <div id="adminCalendarMonth" class="w-36 text-center text-xs font-black text-white uppercase"></div>
+                    <button onclick="changeAdminCalendarMonth(1)" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 font-black">›</button>
+                </div>
+            </div>
+            <div id="adminCalendar"></div>
+            <div class="flex flex-wrap gap-4 mt-5 text-[9px] font-black uppercase text-slate-400">
+                <span>🟢 Available</span><span>⚪ Closed</span><span>5/5 Full</span>
+            </div>
+        </section>
 
         <div id="adminList" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"></div>
     </div>
@@ -105,7 +129,9 @@
                     document.getElementById('loginSection').classList.add('hidden');
                     document.getElementById('dashboard').classList.remove('hidden');
                     document.getElementById('deptTitleDisplay').innerText = 'Officer of the Day — All Schedules';
+                    localStorage.setItem('lguAdminSession', JSON.stringify({ role: '__OFFICER__', title: 'Officer of the Day — All Schedules' }));
                     if (typeof window.loadOfficerData === 'function') window.loadOfficerData();
+                    if (typeof window.startAdminCalendar === 'function') window.startAdminCalendar();
                 } catch (e) {
                     console.error('Officer login:', e);
                     alert("Officer login failed: " + (e?.message || e));
@@ -130,14 +156,61 @@
 
             const target = validAccounts[dept];
             if(target && user === target.u && pass === target.p) {
+                try {
+                    // Authenticate the admin console session with Firebase so calendar changes persist in Firestore.
+                    if (typeof window.loginOfficer === 'function') await window.loginOfficer();
+                } catch (e) {
+                    return alert("Admin authentication failed: " + (e?.message || e));
+                }
                 document.getElementById('loginSection').classList.add('hidden');
                 document.getElementById('dashboard').classList.remove('hidden');
                 document.getElementById('deptTitleDisplay').innerText = dept;
+                if(document.getElementById('rememberAdmin').checked) {
+                    localStorage.setItem('lguAdminSession', JSON.stringify({ role: dept, title: dept }));
+                } else {
+                    localStorage.removeItem('lguAdminSession');
+                }
                 if (window.loadAdminDataByDept) window.loadAdminDataByDept(dept);
+                if (typeof window.startAdminCalendar === 'function') window.startAdminCalendar();
             } else {
                 alert("ACCESS DENIED: Incorrect username or password for this department.");
             }
         }
+
+        window.toggleAdminPassword = function() {
+            const input = document.getElementById('adminPass');
+            const btn = event.currentTarget;
+            const showing = input.type === 'text';
+            input.type = showing ? 'password' : 'text';
+            btn.textContent = showing ? 'SHOW' : 'HIDE';
+        };
+
+        window.logoutAdmin = async function() {
+            localStorage.removeItem('lguAdminSession');
+            try { if (window.logout) await window.logout(); } catch (_) {}
+            location.reload();
+        };
+
+        window.addEventListener('DOMContentLoaded', async function() {
+            const raw = localStorage.getItem('lguAdminSession');
+            if (!raw) return;
+            try {
+                const session = JSON.parse(raw);
+                if (!session?.role) return;
+                if (typeof window.loginOfficer === 'function') await window.loginOfficer();
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+                document.getElementById('deptTitleDisplay').innerText = session.title || session.role;
+                if (session.role === '__OFFICER__') {
+                    if (window.loadOfficerData) window.loadOfficerData();
+                } else if (window.loadAdminDataByDept) {
+                    window.loadAdminDataByDept(session.role);
+                }
+                if (window.startAdminCalendar) window.startAdminCalendar();
+            } catch (e) {
+                localStorage.removeItem('lguAdminSession');
+            }
+        });
     </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, query, where, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, query, where, deleteDoc, getDoc, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAp1YJkWIUYzWdxTV_awoeOIzfghGkGPCU",
@@ -15,6 +15,14 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Keep Firebase sessions on this browser so refreshing the page does not log users out.
+setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+const MAX_APPOINTMENTS_PER_DATE = 5;
+let availabilityUnsubscribe = null;
+let adminCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let adminBookingCounts = {};
 
 // Professional animated alert/toast effect (keeps the existing alert messages and behavior).
 window.showAlert = (message, type = "info") => {
@@ -231,6 +239,7 @@ onAuthStateChanged(auth, (user) => {
         appDiv?.classList.remove('hidden');
         if(emailDisplay) emailDisplay.innerText = user.email;
         loadUserRequests(user.uid);
+        startAvailabilityListener();
     } else if (authDiv) {
         authDiv.classList.remove('hidden');
         appDiv?.classList.add('hidden');
@@ -297,13 +306,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.submitRequest = async () => {
     const name = document.getElementById('citizenFullName').value;
+    const scheduleDate = document.getElementById('citizenScheduleDate')?.value || "";
     const contact = document.getElementById('citizenContact').value;
     const service = document.getElementById('serviceType').value;
     const otherPurpose = document.getElementById('otherPurpose')?.value.trim() || "";
     const fileInput = document.getElementById('requirementUpload').files;
     const submitBtn = document.getElementById('submitRequestBtn');
     
-    if(!name || !contact || !service) return alert("Please fill all citizen details and select a service.");
+    if(!name || !contact || !service || !scheduleDate) return alert("Please fill all citizen details, select a service, and choose an available schedule date.");
     if(service === '__OTHER__' && !otherPurpose) return alert("Please specify the purpose of your appointment.");
     if(service !== '__OTHER__' && fileInput.length === 0) return alert("Please upload at least one required document.");
 
@@ -313,6 +323,16 @@ window.submitRequest = async () => {
 
     try {
         submitBtn.disabled = true;
+
+        const availabilitySnap = await getDoc(doc(db, "schedule_availability", scheduleDate));
+        if (!availabilitySnap.exists() || availabilitySnap.data().available !== true) {
+            throw new Error("That date is not available. Please choose an available date.");
+        }
+        const countSnap = await getDocs(query(collection(db, "lgu_requests"), where("scheduleDate", "==", scheduleDate)));
+        const activeBookings = countSnap.docs.filter(d => (d.data().status || "Pending") !== "Cancelled").length;
+        if (activeBookings >= MAX_APPOINTMENTS_PER_DATE) {
+            throw new Error("That date is already full. Please choose another available date.");
+        }
 
         let uploadedUrls = [];
 
@@ -347,6 +367,8 @@ window.submitRequest = async () => {
             service: serviceName,
             purpose: service === '__OTHER__' ? otherPurpose : "",
             department: department,
+            scheduleDate: scheduleDate,
+            scheduleStatus: "Requested",
             documentUrls: uploadedUrls,
             status: "Pending",
             timestamp: Date.now()
@@ -355,6 +377,7 @@ window.submitRequest = async () => {
         alert(service === '__OTHER__' ? "Appointment Submitted Successfully!" : "Appointment and Documents Submitted Successfully!");
         
         document.getElementById('citizenFullName').value = "";
+        if(document.getElementById('citizenScheduleDate')) document.getElementById('citizenScheduleDate').value = "";
         document.getElementById('citizenContact').value = "";
         document.getElementById('serviceType').value = "";
         if(document.getElementById('otherPurpose')) document.getElementById('otherPurpose').value = "";
@@ -370,6 +393,116 @@ window.submitRequest = async () => {
         submitBtn.innerText = "SUBMIT APPOINTMENT";
         submitBtn.disabled = false;
     }
+};
+
+function startAvailabilityListener() {
+    const dateInput = document.getElementById('citizenScheduleDate');
+    const note = document.getElementById('scheduleAvailabilityNote');
+    if (!dateInput) return;
+    if (availabilityUnsubscribe) availabilityUnsubscribe();
+
+    const today = new Date();
+    const isoToday = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+    dateInput.min = isoToday;
+
+    availabilityUnsubscribe = onSnapshot(collection(db, 'schedule_availability'), (snap) => {
+        const available = {};
+        snap.forEach(d => { available[d.id] = d.data(); });
+        dateInput.dataset.availability = JSON.stringify(available);
+        if (dateInput.value && (!available[dateInput.value] || available[dateInput.value].available !== true)) {
+            dateInput.value = '';
+        }
+        if (note) {
+            const dates = Object.entries(available).filter(([date, x]) => x.available === true && date >= isoToday);
+            note.textContent = dates.length ? 'Choose a date marked available by the LGU. Maximum 5 appointments per date.' : 'No schedule dates are currently available. Please check again later.';
+        }
+    });
+}
+
+window.validateScheduleDate = () => {
+    const input = document.getElementById('citizenScheduleDate');
+    if (!input || !input.value) return;
+    let availability = {};
+    try { availability = JSON.parse(input.dataset.availability || '{}'); } catch (_) {}
+    if (!availability[input.value] || availability[input.value].available !== true) {
+        input.value = '';
+        alert('That date is not available. Please choose a date marked available by the LGU.');
+    }
+};
+
+function renderAdminCalendar() {
+    const host = document.getElementById('adminCalendar');
+    const label = document.getElementById('adminCalendarMonth');
+    if (!host) return;
+    const year = adminCalendarMonth.getFullYear();
+    const month = adminCalendarMonth.getMonth();
+    if (label) label.textContent = adminCalendarMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    const start = first.getDay();
+    const total = last.getDate();
+    const today = new Date();
+    const todayIso = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+    const availability = window._adminAvailability || {};
+    let html = '<div class="grid grid-cols-7 gap-2 text-[9px] font-black text-slate-500 uppercase mb-2">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="text-center">${x}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-2">';
+    for(let i=0;i<start;i++) html += '<div></div>';
+    for(let day=1; day<=total; day++) {
+        const d = new Date(year, month, day);
+        const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+        const item = availability[iso] || {};
+        const isPast = iso < todayIso;
+        const isAvailable = item.available === true;
+        const count = Number(adminBookingCounts[iso] || item.bookedCount || 0);
+        const full = count >= MAX_APPOINTMENTS_PER_DATE;
+        const disabled = isPast;
+        html += `<button type="button" ${disabled ? 'disabled' : ''} onclick="toggleScheduleDate('${iso}')" class="min-h-[72px] p-2 rounded-xl border text-left transition ${isAvailable ? 'bg-emerald-500/15 border-emerald-500/50' : 'bg-slate-800 border-slate-700'} ${disabled ? 'opacity-35 cursor-not-allowed' : 'hover:border-blue-500'}"><span class="text-sm font-black ${isAvailable ? 'text-emerald-300' : 'text-white'}">${day}</span><span class="block text-[8px] mt-1 font-black uppercase ${isAvailable ? 'text-emerald-400' : 'text-slate-500'}">${isAvailable ? (full ? 'FULL' : 'AVAILABLE') : 'CLOSED'}</span><span class="block text-[8px] text-slate-400 mt-1">${count}/${MAX_APPOINTMENTS_PER_DATE}</span></button>`;
+    }
+    html += '</div>';
+    host.innerHTML = html;
+}
+
+window.changeAdminCalendarMonth = (delta) => {
+    adminCalendarMonth = new Date(adminCalendarMonth.getFullYear(), adminCalendarMonth.getMonth() + delta, 1);
+    renderAdminCalendar();
+};
+
+window.toggleScheduleDate = async (date) => {
+    try {
+        const ref = doc(db, 'schedule_availability', date);
+        const snap = await getDoc(ref);
+        const current = snap.exists() ? snap.data() : {};
+        const nextAvailable = current.available !== true;
+        if (nextAvailable && Number(current.bookedCount || 0) >= MAX_APPOINTMENTS_PER_DATE) {
+            return alert('This date already has 5 appointments and cannot accept more.');
+        }
+        await updateDoc(ref, { available: nextAvailable, updatedAt: Date.now() }).catch(async (e) => {
+            if (e.code === 'not-found') {
+                await setDoc(ref, { available: nextAvailable, bookedCount: 0, updatedAt: Date.now() });
+            } else throw e;
+        });
+    } catch (e) { alert('Unable to update schedule date: ' + e.message); }
+};
+
+window.startAdminCalendar = () => {
+    const host = document.getElementById('adminCalendar');
+    if (!host) return;
+    onSnapshot(collection(db, 'schedule_availability'), (snap) => {
+        const data = {};
+        snap.forEach(d => data[d.id] = d.data());
+        window._adminAvailability = data;
+        renderAdminCalendar();
+    });
+    onSnapshot(collection(db, 'lgu_requests'), (snap) => {
+        const counts = {};
+        snap.forEach(d => {
+            const x = d.data();
+            if (x.scheduleDate && (x.status || 'Pending') !== 'Cancelled') counts[x.scheduleDate] = (counts[x.scheduleDate] || 0) + 1;
+        });
+        adminBookingCounts = counts;
+        renderAdminCalendar();
+    });
+    renderAdminCalendar();
 };
 
 function loadUserRequests(uid) {
@@ -413,7 +546,7 @@ function loadUserRequests(uid) {
                     </div>
                     <p class="text-[9px] text-slate-500 font-bold uppercase">Office: ${data.department}</p>
                     <div class="space-y-0.5">${docsHtml}</div>
-                    ${data.schedule ? `<p class="text-[9px] text-blue-600 font-bold bg-blue-50 p-2 rounded mt-1">SCHEDULE: ${data.schedule}</p>` : ''}
+                    ${data.schedule ? `<p class="text-[9px] text-blue-600 font-bold bg-blue-50 p-2 rounded mt-1">SCHEDULE: ${data.schedule}</p>` : `<p class="text-[9px] text-slate-500 font-bold bg-slate-50 p-2 rounded mt-1">REQUESTED DATE: ${data.scheduleDate || '—'}</p>`}
                     ${cancelBtn}
                 </div>`;
         });
@@ -461,6 +594,12 @@ if(sendBtn) {
         if(!date || !time) return alert("Set schedule first!");
 
         try {
+            const availabilitySnap = await getDoc(doc(db, 'schedule_availability', date));
+            if (!availabilitySnap.exists() || availabilitySnap.data().available !== true) throw new Error('Selected date is not available.');
+            const countSnap = await getDocs(query(collection(db, 'lgu_requests'), where('scheduleDate', '==', date)));
+            const active = countSnap.docs.filter(d => d.id !== currentDocId && (d.data().status || 'Pending') !== 'Cancelled').length;
+            if (active >= MAX_APPOINTMENTS_PER_DATE) throw new Error('This date already has 5 appointments. Choose another date.');
+
             await emailjs.send('service_yk1dfxf', 'template_agmhyzw', {
                 to_email: currentCitizenEmail,
                 appointment_date: date,
@@ -470,6 +609,7 @@ if(sendBtn) {
 
             await updateDoc(doc(db, "lgu_requests", currentDocId), { 
                 status: "Approved",
+                scheduleDate: date,
                 schedule: `${date} @ ${time}`
             });
 

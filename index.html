@@ -140,6 +140,11 @@
                     <input id="citizenContact" type="tel" placeholder="0912 345 6789" class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div>
+                    <label class="text-[10px] font-black text-slate-500 uppercase ml-1">Preferred Schedule Date</label>
+                    <input id="citizenScheduleDate" type="date" onchange="validateScheduleDate()" class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <p id="scheduleAvailabilityNote" class="text-[9px] text-slate-400 font-bold mt-1 ml-1">Loading available schedule dates...</p>
+                </div>
+                <div>
                     <label class="text-[10px] font-black text-slate-500 uppercase ml-1">Required Service</label>
                     <select id="serviceType" onchange="displayRequirements()" class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm">
                         <option value="" disabled selected>Select service...</option>

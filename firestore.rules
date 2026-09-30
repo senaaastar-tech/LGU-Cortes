@@ -19,6 +19,11 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /schedule_availability/{dateId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isOfficer() || isStaff();
+    }
+
     match /lgu_requests/{requestId} {
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
