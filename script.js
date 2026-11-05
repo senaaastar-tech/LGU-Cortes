@@ -63,6 +63,18 @@ function isMunicipalWorkingDay(isoDate) {
 function getTimeSlotByValue(value) {
     return OFFICE_TIME_SLOTS.find(x => x.value === value) || null;
 }
+// A slot becomes unavailable at its start time using the browser's local timezone.
+function isAppointmentTimePast(isoDate, time, now = new Date()) {
+    if (!isoDate || !time) return false;
+    const todayIso = dateOnlyToIso(now.getFullYear(), now.getMonth(), now.getDate());
+    if (isoDate < todayIso) return true;
+    if (isoDate > todayIso) return false;
+    const [hours, minutes] = String(time).split(':').map(Number);
+    return now.getHours() * 60 + now.getMinutes() >= hours * 60 + minutes;
+}
+function isTimeOpenForDate(item, isoDate, time) {
+    return !isAppointmentTimePast(isoDate, time) && isTimeOpen(item, time);
+}
 function timeField(value) {
     return `booked_${String(value).replace(':','')}`;
 }
@@ -532,6 +544,7 @@ window.confirmAndSubmitAppointment = async () => {
         if (!/^09\d{9}$/.test(contact)) throw new Error('Please enter a valid Philippine mobile number with exactly 11 digits.');
         if (!isMunicipalWorkingDay(scheduleDate)) throw new Error('Appointments are available Monday to Friday only.');
         if (!selectedTimeSlot || selectedTimeSlot.period !== schedulePeriod) throw new Error('Please choose a valid appointment time.');
+        if (isAppointmentTimePast(scheduleDate, scheduleTime)) throw new Error('That appointment time has already passed. Please choose a future time slot.');
         if(isOtherService(service) && !otherPurpose) throw new Error('Please specify the purpose of your appointment.');
         if(!isOtherService(service) && fileInput.length === 0) throw new Error('Please upload at least one required document.');
 
@@ -567,7 +580,7 @@ window.confirmAndSubmitAppointment = async () => {
             const fresh = await transaction.get(ref);
             if (!fresh.exists()) throw new Error('This schedule is no longer available. Please refresh and choose another slot.');
             const a = fresh.data();
-            if (a.available !== true || !isTimeOpen(a, scheduleTime)) {
+            if (a.available !== true || isAppointmentTimePast(scheduleDate, scheduleTime) || !isTimeOpen(a, scheduleTime)) {
                 throw new Error('That appointment time just became unavailable. Please choose another slot.');
             }
             const field = timeField(scheduleTime);
@@ -677,7 +690,7 @@ function renderUserScheduleCalendar() {
     for(let day=1; day<=total; day++) {
         const iso = dateOnlyToIso(year, month, day);
         const item = userAvailability[makeAvailabilityId(iso, department)] || {};
-        const openTimes = OFFICE_TIME_SLOTS.filter(slot => isTimeOpen(item, slot.value));
+        const openTimes = OFFICE_TIME_SLOTS.filter(slot => isTimeOpenForDate(item, iso, slot.value));
         const isPast = iso < todayIso, isWeekday = isMunicipalWorkingDay(iso);
         const canPick = !isPast && isWeekday && openTimes.length > 0;
         const selected = selectedDate === iso;
@@ -690,7 +703,7 @@ function renderUserScheduleCalendar() {
 
     if (timeInput) {
         const item = selectedDate ? (userAvailability[makeAvailabilityId(selectedDate, department)] || {}) : {};
-        const options = OFFICE_TIME_SLOTS.filter(slot => isTimeOpen(item, slot.value));
+        const options = OFFICE_TIME_SLOTS.filter(slot => isTimeOpenForDate(item, selectedDate, slot.value));
         timeInput.disabled = !selectedDate || options.length === 0;
         timeInput.innerHTML = `<option value="">${selectedDate ? (options.length ? 'Select appointment time...' : 'No time available for this date') : 'Select a date first...'}</option>` + options.map(x=>`<option value="${x.value}" ${selectedTime===x.value?'selected':''}>${x.label}</option>`).join('');
         if (selectedTime && !options.some(x=>x.value===selectedTime)) timeInput.value = '';
@@ -703,7 +716,7 @@ window.selectScheduleDate = (date) => {
     const department = getSelectedDepartment();
     const item = userAvailability[makeAvailabilityId(date, department)];
     if (!item || !isMunicipalWorkingDay(date)) return;
-    const openTimes = OFFICE_TIME_SLOTS.filter(slot => isTimeOpen(item, slot.value));
+    const openTimes = OFFICE_TIME_SLOTS.filter(slot => isTimeOpenForDate(item, date, slot.value));
     if (!openTimes.length) return;
     document.getElementById('citizenScheduleDate').value = date;
     document.getElementById('citizenSchedulePeriod').value = '';
@@ -711,6 +724,13 @@ window.selectScheduleDate = (date) => {
     renderUserScheduleCalendar();
 };
 window.validateScheduleDate = () => renderUserScheduleCalendar();
+// Refresh slot states while the page remains open so elapsed times become disabled without a reload.
+if (!window._lguSlotExpiryTimer) {
+    window._lguSlotExpiryTimer = setInterval(() => {
+        renderUserScheduleCalendar();
+        if (document.getElementById('adminCalendar')) renderAdminCalendar();
+    }, 30000);
+}
 
 function format24HourTime(time) {
     if (!time) return 'TIME TBA';
@@ -769,7 +789,7 @@ function renderAdminCalendar() {
     for(let day=1; day<=total; day++) {
         const iso = dateOnlyToIso(year, month, day);
         const item = availability[makeAvailabilityId(iso, department)] || {};
-        const openTimes = OFFICE_TIME_SLOTS.filter(slot => isTimeOpen(item, slot.value));
+        const openTimes = OFFICE_TIME_SLOTS.filter(slot => isTimeOpenForDate(item, iso, slot.value));
         const dayAppointments = getAdminCalendarRequestsForDate(iso, department);
         const isPast = iso < todayIso, disabled = isPast || !isMunicipalWorkingDay(iso);
         const selected = window._adminSelectedDate === iso;
@@ -805,8 +825,9 @@ function renderAdminTimeEditor() {
     }
     const makeGroup = (period, title) => OFFICE_TIME_SLOTS.filter(x=>x.period===period).map(slot => {
         const enabled = isTimeOpenForAdmin(item, slot.value);
+        const elapsed = isAppointmentTimePast(date, slot.value);
         const booked = getTimeBooked(item, slot.value);
-        return `<label class="flex items-center justify-between gap-3 p-3 rounded-xl border ${enabled?'border-blue-500/50 bg-blue-500/10':'border-slate-700 bg-slate-800'} cursor-pointer"><span><span class="block text-xs font-black text-white">${slot.label}</span><span class="block text-[9px] text-slate-500 mt-0.5">${booked} booked</span></span><input type="checkbox" data-admin-time="${slot.value}" ${enabled?'checked':''} class="w-5 h-5 accent-blue-600"></label>`;
+        return `<label class="flex items-center justify-between gap-3 p-3 rounded-xl border ${elapsed?'border-slate-800 bg-slate-950 opacity-50 cursor-not-allowed':enabled?'border-blue-500/50 bg-blue-500/10 cursor-pointer':'border-slate-700 bg-slate-800 cursor-pointer'}"><span><span class="block text-xs font-black text-white">${slot.label}</span><span class="block text-[9px] ${elapsed?'text-rose-300':'text-slate-500'} mt-0.5">${elapsed?'Time passed · unavailable':`${booked} booked`}</span></span><input type="checkbox" data-admin-time="${slot.value}" ${enabled && !elapsed?'checked':''} ${elapsed?'disabled':''} class="w-5 h-5 accent-blue-600"></label>`;
     }).join('');
     host.innerHTML = `<div class="mt-4 p-4 rounded-2xl bg-slate-900 border border-slate-700"><div class="flex items-center justify-between gap-3 mb-4"><div><p class="text-[9px] font-black uppercase text-blue-400">Individual Time Availability</p><p class="text-xs font-black text-white mt-1">${date}</p></div><button type="button" onclick="saveAdminTimeSlots()" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black">SAVE TIMES</button></div><div class="grid md:grid-cols-2 gap-4"><div><p class="text-[9px] font-black text-slate-500 uppercase mb-2">AM · 8:00–11:00</p><div class="grid gap-2">${makeGroup('AM','AM')}</div></div><div><p class="text-[9px] font-black text-slate-500 uppercase mb-2">PM · 1:00–5:00</p><div class="grid gap-2">${makeGroup('PM','PM')}</div></div></div><p class="text-[9px] text-slate-500 font-bold mt-4">Each enabled time can accept up to 5 appointments. 12:00 PM is excluded for the noon break.</p></div>`;
 }
@@ -817,7 +838,7 @@ function isTimeOpenForAdmin(item, time) {
     return slot?.period === 'AM' ? item.amAvailable === true : item.pmAvailable === true;
 }
 window.editScheduleDate = (date) => {
-    if (!isMunicipalWorkingDay(date)) return;
+    if (!isMunicipalWorkingDay(date) || date < localTodayIso()) return;
     window._adminSelectedDate = date;
     renderAdminCalendar();
 };
@@ -825,7 +846,7 @@ window.saveAdminTimeSlots = async () => {
     const date = window._adminSelectedDate;
     const department = document.getElementById('adminScheduleDept')?.value || '';
     if (!date || !department) return alert('Select an office and weekday first.');
-    const checked = Array.from(document.querySelectorAll('#adminTimeEditor input[data-admin-time]:checked')).map(x=>x.dataset.adminTime);
+    const checked = Array.from(document.querySelectorAll('#adminTimeEditor input[data-admin-time]:checked')).map(x=>x.dataset.adminTime).filter(time => !isAppointmentTimePast(date, time));
     const existing = (window._adminAvailability || {})[makeAvailabilityId(date, department)] || {};
     const data = { date, department, available: checked.length > 0, updatedAt: Date.now() };
     OFFICE_TIME_SLOTS.forEach(slot => {
@@ -980,7 +1001,7 @@ function refreshRescheduleTimeOptions() {
     if (!select) return;
     const item = date && department ? ((window._adminAvailability || {})[makeAvailabilityId(date, department)] || {}) : {};
     const current = select.value;
-    const options = OFFICE_TIME_SLOTS.filter(slot => slot.period === period && (isTimeOpen(item, slot.value) || slot.value === current));
+    const options = OFFICE_TIME_SLOTS.filter(slot => slot.period === period && !isAppointmentTimePast(date, slot.value) && (isTimeOpen(item, slot.value) || slot.value === current));
     select.innerHTML = '<option value="">Select available time...</option>' + options.map(slot=>`<option value="${slot.value}">${slot.label}</option>`).join('');
     if (options.some(x=>x.value===current)) select.value=current;
 }
@@ -1059,6 +1080,8 @@ window.approveAppointment = async (id) => {
             to_email: data.email || currentCitizenEmail,
             appointment_date: data.scheduleDate,
             appointment_time: data.scheduleTime || (data.schedulePeriod === 'AM' ? 'Morning (AM)' : 'Afternoon (PM)'),
+            status: 'Approved',
+            title: 'Approved',
             message: `Your appointment with ${data.department || 'LGU Cortes'} has been approved.`
         });
         alert('Appointment approved and confirmation email sent.');
@@ -1180,6 +1203,8 @@ if(sendBtn) {
                     to_email: requestData.email || currentCitizenEmail,
                     appointment_date: date,
                     appointment_time: timeSlot.label,
+                    status: 'Rescheduled',
+                    title: 'Rescheduled',
                     message: `Your appointment schedule with ${department} has been updated.`
                 });
                 alert('Appointment rescheduled and updated confirmation email sent.');
@@ -1409,6 +1434,8 @@ window.saveRecordStatus = async () => {
                     to_email: request.email,
                     appointment_date: request.scheduleDate || '',
                     appointment_time: formatTime12Hour(request.scheduleTime),
+                    status,
+                    title: status,
                     message
                 });
                 alert('Appointment status updated and notification email sent.');
@@ -1449,7 +1476,14 @@ window.uploadReleasedDocument = async () => {
         await updateDoc(doc(db,'lgu_requests',activeRecordId),{ releasedDocumentUrl:url, releasedDocumentName:file.name, releasedAt:Date.now(), status:'Ready for Release', scheduleStatus:'Ready for Release', updatedAt:Date.now() });
         document.getElementById('releasedDocumentInput').value='';
         try {
-            if (request.email) await emailjs.send('service_yk1dfxf','template_agmhyzw', { to_email:request.email, appointment_date:request.scheduleDate || '', appointment_time:formatTime12Hour(request.scheduleTime), message:'Your requested document is ready for release. Please log in to LGU Cortes Connect to view and download the released document.' });
+            if (request.email) await emailjs.send('service_yk1dfxf','template_agmhyzw', {
+                to_email: request.email,
+                appointment_date: request.scheduleDate || '',
+                appointment_time: formatTime12Hour(request.scheduleTime),
+                status: 'Ready for Release',
+                title: 'Ready for Release',
+                message: 'Your requested document is ready for release. Please log in to LGU Cortes Connect to view and download the released document.'
+            });
             alert(request.email ? 'Released document uploaded. Status updated and notification email sent.' : 'Released document uploaded and status set to Ready for Release. No citizen email was recorded.');
         } catch (mailError) {
             console.error('Release notification email:', mailError);
