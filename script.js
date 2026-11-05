@@ -891,7 +891,7 @@ function loadUserRequests(uid) {
         }
 
         requests.forEach(data => {
-            const color = data.status === 'Approved' ? 'bg-green-100 text-green-700' : (data.status === 'Completed' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700');
+            const color = data.status === 'Approved' ? 'bg-green-100 text-green-700' : (data.status === 'Completed' ? 'bg-blue-100 text-blue-700' : (data.status === 'Ready for Release' ? 'bg-emerald-100 text-emerald-800' : data.status === 'Rejected' || data.status === 'Cancelled' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'));
             
             let docsHtml = '';
             if (data.documentUrls && Array.isArray(data.documentUrls)) {
@@ -902,6 +902,8 @@ function loadUserRequests(uid) {
                 docsHtml = `<a href="${data.documentUrl}" target="_blank" class="text-[10px] text-blue-600 font-bold hover:underline">View Uploaded Doc</a>`;
             }
 
+            if (data.releasedDocumentUrl) docsHtml += `<a href="${data.releasedDocumentUrl}" target="_blank" rel="noopener" class="text-[10px] text-emerald-700 font-black hover:underline block">📥 Download Released Document</a>`;
+            if (data.receiptNumber) docsHtml += `<p class="text-[9px] text-slate-500">Receipt No.: ${data.receiptNumber}</p>`;
             const cancelBtn = data.status === 'Pending' 
                 ? `<button onclick="cancelMyRequest('${data.id}')" class="mt-2 text-[9px] bg-red-50 text-red-600 font-black px-3 py-1.5 rounded-lg hover:bg-red-100 transition uppercase">Cancel Request</button>` 
                 : '';
@@ -910,7 +912,7 @@ function loadUserRequests(uid) {
                 <div class="bg-white p-4 border border-slate-100 rounded-xl shadow-sm flex flex-col gap-2">
                     <div class="flex justify-between items-center">
                         <span class="text-xs font-black text-slate-800 uppercase">${data.service}</span>
-                        <span class="${color} text-[8px] font-black px-2 py-1 rounded uppercase tracking-tighter">${data.status}</span>
+                        <span class="${color} text-[8px] font-black px-2 py-1 rounded uppercase tracking-tighter">${data.status || 'Pending'}</span>
                     </div>
                     <p class="text-[9px] text-slate-500 font-bold uppercase">Office: ${data.department}</p>
                     <div class="space-y-0.5">${docsHtml}</div>
@@ -1331,3 +1333,140 @@ window.loadAdminDataByDept = (deptName) => {
         });
     });
 };
+
+// Panel-requested appointment monitoring, receipt records, release documents and visitor logsheet.
+let overviewUnsubscribe = null;
+let overviewRequests = [];
+let activeRecordId = '';
+const safeText = (v) => String(v ?? '—').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+window.startAdminOverview = (role) => {
+    const host = document.getElementById('adminOverviewResults');
+    if (!host) return;
+    overviewUnsubscribe?.();
+    const base = collection(db, 'lgu_requests');
+    const q = role === '__OFFICER__' ? query(base) : query(base, where('department', '==', role));
+    overviewUnsubscribe = onSnapshot(q, (snap) => {
+        overviewRequests = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+        overviewRequests.sort((a,b) => (b.timestamp || b.createdAt || 0) - (a.timestamp || a.createdAt || 0));
+        renderAdminOverview();
+    }, (err) => { console.error('Appointment overview:', err); host.innerHTML = '<p class="text-red-300 text-xs">Unable to load monitoring data. Check Firestore permissions.</p>'; });
+};
+window.renderAdminOverview = () => {
+    const stats = document.getElementById('appointmentStats');
+    const host = document.getElementById('adminOverviewResults');
+    if (!stats || !host) return;
+    const count = (status) => overviewRequests.filter(x => (x.status || 'Pending') === status).length;
+    const visited = overviewRequests.filter(x => !!x.visitedAt).length;
+    const tiles = [['Total', overviewRequests.length], ['Pending', count('Pending')], ['Approved', count('Approved')], ['Ready for Release', count('Ready for Release')], ['Visited', visited]];
+    stats.innerHTML = tiles.map(([label,value]) => `<div class="rounded-xl bg-slate-800 border border-slate-700 p-4"><p class="text-[9px] text-slate-400 uppercase font-black">${label}</p><p class="text-2xl text-white font-black mt-1">${value}</p></div>`).join('');
+    const term = (document.getElementById('appointmentSearch')?.value || '').toLowerCase();
+    const status = document.getElementById('appointmentStatusFilter')?.value || '';
+    const mode = document.getElementById('appointmentViewMode')?.value || 'cards';
+    const dateFilter = document.getElementById('appointmentDateFilter')?.value || '';
+    const timeFilter = document.getElementById('appointmentTimeFilter')?.value || '';
+    const rows = overviewRequests.filter(x => (!status || (x.status || 'Pending') === status) && (!dateFilter || x.scheduleDate === dateFilter) && (!timeFilter || x.scheduleTime === timeFilter) && (!term || [x.fullName,x.email,x.department,x.service,x.receiptNumber].some(v => String(v || '').toLowerCase().includes(term))));
+    if (!rows.length) { host.innerHTML = '<p class="text-slate-400 text-xs py-8 text-center">No matching appointment records.</p>'; return; }
+    if (mode === 'table') {
+        host.innerHTML = `<table class="w-full min-w-[850px] text-left text-xs text-slate-200"><thead class="bg-slate-800 uppercase text-[9px] text-slate-400"><tr><th class="p-3">Citizen</th><th class="p-3">Office / Service</th><th class="p-3">Visit date / time</th><th class="p-3">Status</th><th class="p-3">Receipt no.</th><th class="p-3">Visitor</th><th class="p-3">Action</th></tr></thead><tbody>${rows.map(x => `<tr class="border-b border-slate-800"><td class="p-3">${safeText(x.fullName)}<br><span class="text-slate-500">${safeText(x.email)}</span></td><td class="p-3">${safeText(x.department)}<br>${safeText(x.service)}</td><td class="p-3">${safeText(x.scheduleDate)}<br>${safeText(formatTime12Hour(x.scheduleTime))}</td><td class="p-3">${safeText(x.status || 'Pending')}</td><td class="p-3">${safeText(x.receiptNumber)}</td><td class="p-3">${x.visitedAt ? 'Visited' : 'Not yet'}</td><td class="p-3"><button onclick="openRecordModal('${x.id}')" class="bg-blue-700 px-3 py-2 rounded-lg font-bold">VIEW / UPDATE</button></td></tr>`).join('')}</tbody></table>`;
+    } else {
+        host.innerHTML = `<div class="grid md:grid-cols-2 xl:grid-cols-3 gap-3">${rows.map(x => `<article class="bg-slate-800 border border-slate-700 rounded-xl p-4"><div class="flex justify-between gap-2"><b class="text-white">${safeText(x.fullName)}</b><span class="text-[9px] text-blue-300">${safeText(x.status || 'Pending')}</span></div><p class="text-[10px] text-slate-400 mt-2">${safeText(x.department)} · ${safeText(x.service)}</p><p class="text-xs text-slate-200 mt-2">${safeText(x.scheduleDate)} · ${safeText(formatTime12Hour(x.scheduleTime))}</p><p class="text-[10px] text-slate-400 mt-2">Receipt: ${safeText(x.receiptNumber)} · ${x.visitedAt ? 'Visited' : 'Not yet visited'}</p><button onclick="openRecordModal('${x.id}')" class="mt-3 w-full bg-blue-700 hover:bg-blue-600 p-2 rounded-lg text-[10px] font-black">VIEW / MANAGE RECORD</button></article>`).join('')}</div>`;
+    }
+};
+window.openRecordModal = async (id) => {
+    const item = overviewRequests.find(x => x.id === id);
+    if (!item) return;
+    activeRecordId = id;
+    document.getElementById('receiptNumberInput').value = item.receiptNumber || '';
+    const links = [];
+    (item.documentUrls || (item.documentUrl ? [item.documentUrl] : [])).forEach((u,i) => links.push(`<a class="text-blue-700 underline block" href="${safeText(u)}" target="_blank" rel="noopener">Requirement ${i+1}</a>`));
+    if (item.receiptProofUrl) links.push(`<a class="text-blue-700 underline block" href="${safeText(item.receiptProofUrl)}" target="_blank" rel="noopener">View receipt proof</a>`);
+    if (item.releasedDocumentUrl) links.push(`<a class="text-emerald-700 underline block" href="${safeText(item.releasedDocumentUrl)}" target="_blank" rel="noopener">View released document</a>`);
+    document.getElementById('recordModalBody').innerHTML = `<p><b>Citizen:</b> ${safeText(item.fullName)}</p><p><b>Email:</b> ${safeText(item.email)}</p><p><b>Contact:</b> ${safeText(item.contact)}</p><p><b>Office:</b> ${safeText(item.department)}</p><p><b>Service:</b> ${safeText(item.service)}</p><p><b>Purpose:</b> ${safeText(item.purpose)}</p><p><b>Schedule:</b> ${safeText(item.scheduleDate)} ${safeText(formatTime12Hour(item.scheduleTime))}</p><p><b>Status:</b> ${safeText(item.status || 'Pending')}</p><p><b>Documents:</b>${links.join('') || ' None uploaded'}</p><div class="mt-3"><label class="font-bold text-xs">Update status<select id="recordStatusSelect" class="block w-full border rounded-lg p-2 mt-1"><option ${item.status==='Pending'?'selected':''}>Pending</option><option ${item.status==='Approved'?'selected':''}>Approved</option><option ${item.status==='Ready for Release'?'selected':''}>Ready for Release</option><option ${item.status==='Completed'?'selected':''}>Completed</option><option ${item.status==='Rejected'?'selected':''}>Rejected</option></select></label><button onclick="saveRecordStatus()" class="mt-2 bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-black">UPDATE STATUS</button></div>`;
+    document.getElementById('recordModal').classList.remove('hidden');
+};
+window.closeRecordModal = () => { document.getElementById('recordModal')?.classList.add('hidden'); activeRecordId=''; };
+window.saveRecordStatus = async () => {
+    if (!activeRecordId) return;
+    const status = document.getElementById('recordStatusSelect')?.value;
+    if (!status) return alert('Please select an appointment status.');
+    const request = overviewRequests.find(x => x.id === activeRecordId);
+    if (!request) return alert('Appointment record not found. Please refresh the admin page.');
+    const previousStatus = request.status || 'Pending';
+    try {
+        await updateDoc(doc(db,'lgu_requests',activeRecordId), {
+            status, scheduleStatus: status, statusUpdatedAt:Date.now(), updatedAt:Date.now()
+        });
+        if (status !== previousStatus && request.email) {
+            const messages = {
+                'Approved': 'Your LGU Cortes appointment has been approved.',
+                'Ready for Release': 'Your requested document is ready for release. Please log in to LGU Cortes Connect to view and download the released document.',
+                'Completed': 'Your LGU Cortes appointment has been marked as completed.',
+                'Rejected': 'Your LGU Cortes appointment request has been rejected. Please contact the concerned office for more information.'
+            };
+            const message = messages[status] || `Your LGU Cortes appointment status has been updated to ${status}.`;
+            try {
+                await emailjs.send('service_yk1dfxf','template_agmhyzw', {
+                    to_email: request.email,
+                    appointment_date: request.scheduleDate || '',
+                    appointment_time: formatTime12Hour(request.scheduleTime),
+                    message
+                });
+                alert('Appointment status updated and notification email sent.');
+            } catch (mailError) {
+                console.error('Status notification email:', mailError);
+                alert('Appointment status updated, but the notification email could not be sent. The citizen can still see the latest status in the portal.');
+            }
+        } else {
+            alert(status === previousStatus ? 'Appointment status is unchanged.' : 'Appointment status updated. No citizen email was recorded.');
+        }
+    } catch(e) { alert('Unable to update status: ' + (e.message || e)); }
+};
+async function uploadRecordFile(file, folder) {
+    if (!file) throw new Error('Please choose a file first.');
+    if (file.size > 10 * 1024 * 1024) throw new Error('File must be 10 MB or smaller.');
+    const form = new FormData(); form.append('file',file); form.append('upload_preset','lgu_documents'); form.append('folder',folder);
+    const response = await fetch('https://api.cloudinary.com/v1_1/pegozmkv/auto/upload',{method:'POST',body:form});
+    const data = await response.json(); if (!response.ok || !data.secure_url) throw new Error(data.error?.message || 'File upload failed.');
+    return data.secure_url;
+}
+window.saveReceiptRecord = async () => {
+    if (!activeRecordId) return;
+    try {
+        const receiptNumber = document.getElementById('receiptNumberInput').value.trim();
+        const file = document.getElementById('receiptProofInput').files[0];
+        const patch = { receiptNumber, receiptRecordedAt:Date.now(), updatedAt:Date.now() };
+        if (file) patch.receiptProofUrl = await uploadRecordFile(file,'lgu_documents/receipts');
+        await updateDoc(doc(db,'lgu_requests',activeRecordId),patch); alert('Receipt record saved.');
+        document.getElementById('receiptProofInput').value='';
+    } catch(e) { alert('Receipt save failed: ' + (e.message || e)); }
+};
+window.uploadReleasedDocument = async () => {
+    if (!activeRecordId) return;
+    try {
+        const file = document.getElementById('releasedDocumentInput').files[0];
+        const url = await uploadRecordFile(file,'lgu_documents/released');
+        const request = overviewRequests.find(x => x.id === activeRecordId) || {};
+        await updateDoc(doc(db,'lgu_requests',activeRecordId),{ releasedDocumentUrl:url, releasedDocumentName:file.name, releasedAt:Date.now(), status:'Ready for Release', scheduleStatus:'Ready for Release', updatedAt:Date.now() });
+        document.getElementById('releasedDocumentInput').value='';
+        try {
+            if (request.email) await emailjs.send('service_yk1dfxf','template_agmhyzw', { to_email:request.email, appointment_date:request.scheduleDate || '', appointment_time:formatTime12Hour(request.scheduleTime), message:'Your requested document is ready for release. Please log in to LGU Cortes Connect to view and download the released document.' });
+            alert(request.email ? 'Released document uploaded. Status updated and notification email sent.' : 'Released document uploaded and status set to Ready for Release. No citizen email was recorded.');
+        } catch (mailError) {
+            console.error('Release notification email:', mailError);
+            alert('Document uploaded and status updated, but the notification email could not be sent. The citizen can still see the update in the portal.');
+        }
+    } catch(e) { alert('Document upload failed: ' + (e.message || e)); }
+};
+window.markAppointmentVisited = async () => {
+    if (!activeRecordId) return;
+    try { await updateDoc(doc(db,'lgu_requests',activeRecordId),{ visitedAt:Date.now(), visitedDate:(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })(), updatedAt:Date.now() }); alert('Visitor logsheet updated.'); }
+    catch(e) { alert('Unable to record visit: ' + (e.message || e)); }
+};
+window.exportVisitorLogsheet = () => {
+    const rows = overviewRequests.filter(x => x.visitedAt);
+    if (!rows.length) return alert('No visitor records yet. Use MARK AS VISITED on an appointment after the citizen arrives.');
+    const cols = ['visitedDate','fullName','contact','email','department','service','scheduleDate','scheduleTime','receiptNumber','status'];
+    const csv = [cols.join(','), ...rows.map(x => cols.map(k => '"'+String(x[k] ?? '').replace(/"/g,'""')+'"').join(','))].join('\r\n');
+    const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='LGU-Cortes-Visitor-Logsheet.csv'; a.click(); URL.revokeObjectURL(url);
+};
+

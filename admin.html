@@ -186,7 +186,35 @@
             </div>
         </section>
 
+        <section id="adminOverview" class="mb-8 bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+                <div><h2 class="text-lg font-black text-white uppercase">Appointment Monitoring & Visitor Logsheet</h2><p class="text-[10px] text-slate-400 mt-1">Live counts, status filters, receipt records, released documents, and visitor report.</p></div>
+                <button onclick="exportVisitorLogsheet()" class="bg-emerald-700 hover:bg-emerald-600 px-4 py-3 rounded-xl text-[10px] font-black">DOWNLOAD VISITOR LOGS (CSV)</button>
+            </div>
+            <div id="appointmentStats" class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5"></div>
+            <div class="grid md:grid-cols-2 xl:grid-cols-5 gap-3 mb-4">
+                <input id="appointmentSearch" oninput="renderAdminOverview()" placeholder="Search citizen, email, receipt no..." class="p-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs">
+                <select id="appointmentStatusFilter" onchange="renderAdminOverview()" class="p-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs"><option value="">All statuses</option><option>Pending</option><option>Approved</option><option>Ready for Release</option><option>Completed</option><option>Rejected</option><option>Cancelled</option></select>
+                <input id="appointmentDateFilter" type="date" onchange="renderAdminOverview()" class="p-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs" title="Filter by appointment date">
+                <select id="appointmentTimeFilter" onchange="renderAdminOverview()" class="p-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs"><option value="">All time slots</option><option value="08:00">8:00 AM</option><option value="09:00">9:00 AM</option><option value="10:00">10:00 AM</option><option value="11:00">11:00 AM</option><option value="13:00">1:00 PM</option><option value="14:00">2:00 PM</option><option value="15:00">3:00 PM</option><option value="16:00">4:00 PM</option><option value="17:00">5:00 PM</option></select>
+                <select id="appointmentViewMode" onchange="renderAdminOverview()" class="p-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs"><option value="cards">Card view</option><option value="table">Table / Logsheet view</option></select>
+            </div>
+            <div id="adminOverviewResults" class="overflow-x-auto"></div>
+        </section>
         <div id="adminList" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"></div>
+        <div id="recordModal" class="hidden fixed inset-0 z-[100] bg-black/80 p-4 flex items-center justify-center">
+            <div class="bg-white text-slate-900 rounded-2xl p-6 w-full max-w-xl max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4"><h3 class="font-black text-lg">Appointment Record</h3><button onclick="closeRecordModal()" class="text-2xl">×</button></div>
+                <div id="recordModalBody" class="text-sm space-y-3"></div>
+                <div class="grid md:grid-cols-2 gap-3 mt-5">
+                    <label class="text-xs font-bold">Receipt number<input id="receiptNumberInput" class="mt-1 w-full border rounded-lg p-2" placeholder="Enter official receipt number"></label>
+                    <label class="text-xs font-bold">Upload receipt proof<input id="receiptProofInput" type="file" accept="image/*,.pdf" class="mt-1 w-full border rounded-lg p-2"></label>
+                    <label class="text-xs font-bold md:col-span-2">Upload released document<input id="releasedDocumentInput" type="file" accept="image/*,.pdf" class="mt-1 w-full border rounded-lg p-2"></label>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-4"><button onclick="saveReceiptRecord()" class="bg-blue-700 text-white px-4 py-3 rounded-lg text-xs font-black">SAVE RECEIPT</button><button onclick="uploadReleasedDocument()" class="bg-emerald-700 text-white px-4 py-3 rounded-lg text-xs font-black">UPLOAD RELEASED DOCUMENT</button><button onclick="markAppointmentVisited()" class="bg-slate-800 text-white px-4 py-3 rounded-lg text-xs font-black">MARK AS VISITED</button></div>
+                <p class="text-[10px] text-slate-500 mt-3">Uploaded files are stored using the project's existing Cloudinary upload configuration.</p>
+            </div>
+        </div>
     </div>
 
     <div id="emailModal" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center p-6 z-50 backdrop-blur-sm">
@@ -239,6 +267,7 @@
                     localStorage.setItem('lguAdminSession', JSON.stringify({ role: '__OFFICER__', title: 'Officer of the Day — All Schedules' }));
                     if (typeof window.loadOfficerData === 'function') window.loadOfficerData();
                     if (typeof window.startAdminCalendar === 'function') window.startAdminCalendar();
+                    if (typeof window.startAdminOverview === 'function') window.startAdminOverview('__OFFICER__');
                 } catch (e) {
                     console.error('Officer login:', e);
                     alert("Officer login failed: " + (e?.message || e));
@@ -280,6 +309,7 @@
                 }
                 if (window.loadAdminDataByDept) window.loadAdminDataByDept(dept);
                 if (typeof window.startAdminCalendar === 'function') window.startAdminCalendar();
+                if (typeof window.startAdminOverview === 'function') window.startAdminOverview(dept);
             } else {
                 alert("ACCESS DENIED: Incorrect username or password for this department.");
             }
@@ -320,6 +350,7 @@
                     window.loadAdminDataByDept(session.role);
                 }
                 if (window.startAdminCalendar) window.startAdminCalendar();
+                if (window.startAdminOverview) window.startAdminOverview(session.role);
             } catch (e) {
                 localStorage.removeItem('lguAdminSession');
             }
